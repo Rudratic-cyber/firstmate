@@ -558,8 +558,9 @@ test_spawn_unverified_secondmate_harness_refused() {
 # unverified-adapter guard above (launch_template has a real cursor entry).
 # It still must be refused for --secondmate: a secondmate runs its own
 # primary Firstmate session in its own home, and cursor has none of the
-# primary-session integrations that requires (turn-end guard, PreToolUse
-# seatbelt, session-start nudge, session-lock identity). Reaffirmed after an
+# four primary-session integrations that requires (turn-end guard, PreToolUse
+# seatbelt, session-start nudge, primary watcher supervision), and as a
+# consequence no session-lock identity either. Reaffirmed after an
 # earlier fix round widened bin/fm-session-lock-lib.sh instead of narrowing
 # this acceptance - the correct fix is this refusal, not a lock identity.
 test_spawn_cursor_secondmate_refused() {

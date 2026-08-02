@@ -262,8 +262,8 @@ SH
 # make lock acquisition succeed for cursor) instead of refusing the
 # secondmate spawn; that was reverted as the wrong fix - the lock succeeding
 # would have let a cursor secondmate run with no turn-end guard, no
-# PreToolUse seatbelt, and no session-start nudge, looking supported while
-# running fully unsupervised.
+# PreToolUse seatbelt, no session-start nudge, and no primary watcher
+# supervision, looking supported while running fully unsupervised.
 test_session_lock_has_no_cursor_identity() {
   local dir fakebin got
   dir="$TMP_ROOT/session-lock-none"

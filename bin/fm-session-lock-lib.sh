@@ -11,12 +11,13 @@
 # Known harness command names; extend when a new adapter is verified.
 # cursor is deliberately NOT here: it is a crewmate/scout runtime only.
 # A secondmate runs its own primary Firstmate session in its own home, and
-# cursor has no primary-session integrations for that session to use (no
-# turn-end guard, no PreToolUse seatbelt, no session-start nudge), so it must
-# not be able to acquire a session lock either - bin/fm-spawn.sh refuses a
-# cursor --secondmate spawn outright, and this file staying additive-only
-# keeps that refusal meaningful instead of leaving a lock identity that would
-# let a cursor secondmate's session run, unsupervised, if one ever existed.
+# cursor has none of the four primary-session integrations that session would
+# use (no turn-end guard, no PreToolUse seatbelt, no session-start nudge, no
+# primary watcher supervision), so it must not be able to acquire a session
+# lock either - bin/fm-spawn.sh refuses a cursor --secondmate spawn outright,
+# and this file staying additive-only keeps that refusal meaningful instead of
+# leaving a lock identity that would let a cursor secondmate's session run,
+# unsupervised, if one ever existed.
 FM_HARNESS_RE='claude|codex|opencode|grok|kimi|^pi$|^pi-signed$'
 
 # Walk the current process ancestry (up to 16 hops) and print a harness pid.

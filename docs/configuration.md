@@ -194,7 +194,7 @@ The full cmux home label also includes a short hash of the resolved `FM_ROOT` pa
 ## Harness support
 
 claude, codex, opencode, pi, pi-signed, grok, and kimi are empirically verified for crewmate and secondmate launches; [README requirements](../README.md#requirements) own the set supported for the primary session.
-cursor is verified for crewmate and scout launches only, and is refused outright as a secondmate harness: it has no primary-session integrations (turn-end guard, PreToolUse seatbelt, session-start nudge, session-lock identity), so `bin/fm-spawn.sh` fails a `--secondmate` spawn on it before any endpoint or worktree is created and `config/secondmate-harness` must never name it.
+cursor is verified for crewmate and scout launches only, and is refused outright as a secondmate harness: it has none of the four primary-session integrations a secondmate's own session needs (turn-end guard, PreToolUse seatbelt, session-start nudge, primary watcher supervision), so `bin/fm-spawn.sh` fails a `--secondmate` spawn on it before any endpoint or worktree is created and `config/secondmate-harness` must never name it.
 Named-model selection was also not verified for cursor, so every cursor dispatch must stay pinned to `--model auto` until that gap closes - the harness-adapters skill below owns the evidence and the standing rule.
 New harnesses get verified through a supervised trial task before joining the set.
 The verified adapter knowledge - each harness's busy-state source, interrupt and exit commands, skill-invocation syntax, and per-harness quirks - lives in [`.agents/skills/harness-adapters/SKILL.md`](../.agents/skills/harness-adapters/SKILL.md).

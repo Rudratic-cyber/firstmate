@@ -448,7 +448,7 @@ Treat a `fm-send` return code to a live Cursor pane as advisory, not proof, unti
 Regression coverage: `tests/fm-composer-ghost.test.sh` (both half-block fixtures plus the no-crossover case for bordered harnesses); `tests/fm-cursor-harness.test.sh` covers harness identity (detection plus the session-lock ancestry/liveness path), not the composer.
 
 **Cursor is a crewmate/scout runtime only (firstmate decision, 2026-08-02) - `--secondmate` is refused outright.**
-A secondmate runs its own primary Firstmate session in its own home, and cursor has none of the primary-session integrations that session needs: no turn-end guard, no PreToolUse seatbelt, no session-start nudge, and (deliberately) no session-lock identity in `bin/fm-session-lock-lib.sh` either.
+A secondmate runs its own primary Firstmate session in its own home, and cursor has none of the four primary-session integrations that session needs: no turn-end guard, no PreToolUse seatbelt, no session-start nudge, and no primary watcher supervision.
 The task that added this adapter permitted secondmate support only "if it falls out for free," and it did not: the launch template being kind-agnostic (identical command for ship/scout/secondmate, matching grok's shape, needing no per-kind extension files the way pi/codex do) made the *launch* look free, but a secondmate's own primary session still needs the four integrations above, and none of them exist for cursor.
 `bin/fm-spawn.sh` refuses a `--secondmate` spawn with `harness=cursor` outright through every resolution path (`config/secondmate-harness`, an explicit `--harness cursor` override, and the bare positional adapter name), before any endpoint or worktree is created, with a diagnostic naming the reason.
 `bin/fm-session-lock-lib.sh`'s `FM_HARNESS_RE` deliberately has no cursor alternative, so a cursor-agent process (comm `MainThread`) can never resolve as a session-lock holder.
@@ -457,7 +457,7 @@ Regression coverage: `tests/fm-secondmate-harness.test.sh`'s `test_spawn_cursor_
 Crewmate/scout dispatch, and everything else recorded in this section, is unaffected.
 
 **Primary-session scope.** This verification covers cursor-agent as a firstmate-launched WORKER only.
-Turn-end guard, PreToolUse seatbelt, and session-start nudge integrations for a Cursor PRIMARY session are out of scope and not attempted; `README.md`'s primary-harness requirements list is intentionally unchanged.
+Turn-end guard, PreToolUse seatbelt, session-start nudge, and primary watcher supervision integrations for a Cursor PRIMARY session are out of scope and not attempted; `README.md`'s primary-harness requirements list is intentionally unchanged.
 
 **Adjacent adapter note (not built here).** `cursor-agent --acp` was not tested, but Cursor's own CLI ecosystem and `no-mistakes doctor`'s `cursor` entry both reference the Agent Client Protocol, and GitHub Copilot CLI exposes `copilot --acp` on this machine (`copilot` 1.0.77, separately installed).
 There may be a shared ACP-based path worth investigating for a future Copilot adapter; this task does not explore or build it.

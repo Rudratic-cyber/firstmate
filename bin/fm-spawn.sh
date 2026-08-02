@@ -570,13 +570,15 @@ if [ "$HARNESS" = pi-signed ] && ! command -v pi-signed >/dev/null 2>&1; then
 fi
 
 # cursor is a crewmate/scout runtime only. A secondmate runs its own primary
-# Firstmate session in its own home, and cursor has none of the primary-session
-# integrations that requires: no turn-end guard, no PreToolUse seatbelt, no
-# session-start nudge, and (deliberately, see bin/fm-session-lock-lib.sh) no
-# session-lock identity either. Refuse loudly here rather than let a cursor
-# secondmate look supported while running fully unsupervised.
+# Firstmate session in its own home, and cursor has none of the four
+# primary-session integrations that requires: no turn-end guard, no PreToolUse
+# seatbelt, no session-start nudge, and no primary watcher supervision. As a
+# consequence it deliberately has no session-lock identity either (see
+# bin/fm-session-lock-lib.sh), so such a session could not even hold its own
+# home's lock. Refuse loudly here rather than let a cursor secondmate look
+# supported while running fully unsupervised.
 if [ "$KIND" = secondmate ] && [ "$HARNESS" = cursor ]; then
-  echo "error: cursor is a crewmate/scout runtime only; it has no primary-session integrations (turn-end guard, watcher supervision, session-start nudge) and cannot host a secondmate. Spawn a crewmate or scout instead, or select a different verified secondmate harness." >&2
+  echo "error: cursor is a crewmate/scout runtime only; it has no primary-session integrations (turn-end guard, PreToolUse seatbelt, session-start nudge, primary watcher supervision) and cannot host a secondmate. Spawn a crewmate or scout instead, or select a different verified secondmate harness." >&2
   exit 1
 fi
 
