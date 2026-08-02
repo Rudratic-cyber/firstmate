@@ -11,6 +11,24 @@
 # Known harness command names; extend when a new adapter is verified.
 FM_HARNESS_RE='claude|codex|opencode|grok|kimi|^pi$|^pi-signed$'
 
+# True when the command-name basename $1 and argv $2 identify a cursor-agent
+# process. cursor-agent's own comm is the literal string "MainThread" (a Node
+# runtime-thread-naming quirk, verified 2026-08-02 on cursor-agent
+# 2026.07.23-e383d2b), never "cursor" or "node", so no FM_HARNESS_RE
+# alternative and neither bare-interpreter arm below can ever reach it: cursor
+# needs this dedicated identity, exactly as bin/fm-harness.sh's ancestry
+# fallback does. Deliberately gated on that comm rather than folded into
+# FM_HARNESS_RE: a node/python process whose argv merely NAMES cursor-agent
+# (an expanded brief, a --print argument) is not a harness, and widening the
+# shared regex would change an already-verified adapter's result.
+fm_harness_is_cursor() {  # <comm-basename> <args>
+  [ "$1" = MainThread ] || return 1
+  case "$2" in
+    *cursor-agent*) return 0 ;;
+  esac
+  return 1
+}
+
 # Walk the current process ancestry (up to 16 hops) and print a harness pid.
 # For every harness except Claude, the first match wins (innermost pid), which
 # is where e.g. Pi's shared signed-wrapper ancestry actually holds the session:
@@ -36,6 +54,12 @@ fm_harness_ancestry_pid() {
     if printf '%s' "$bc" | grep -qE "$FM_HARNESS_RE"; then
       hit=1
       case "$bc" in *claude*) is_claude=1 ;; esac
+    elif fm_harness_is_cursor "$bc" "$args"; then
+      # First match wins, like every non-claude harness: cursor-agent's argv
+      # carries a --model id that can itself name claude
+      # (claude-opus-5-thinking-high), so is_claude must stay 0 here or the
+      # walk would extend past the real lock owner.
+      hit=1
     else
       # Bare interpreter (e.g. node): match the harness name in its script path.
       case "$comm" in
@@ -66,18 +90,27 @@ fm_harness_ancestry_pid() {
 
 # True if $1 is a live process that looks like a verified harness.
 fm_harness_pid_alive() {
-  local pid=$1 comm args
+  local pid=$1 comm base args
   kill -0 "$pid" 2>/dev/null || return 1
   comm=$(ps -o comm= -p "$pid" 2>/dev/null) || return 1
-  if printf '%s' "$(basename -- "$comm")" | grep -qE "$FM_HARNESS_RE"; then
+  base=$(basename -- "$comm")
+  if printf '%s' "$base" | grep -qE "$FM_HARNESS_RE"; then
     return 0
   fi
-  case "$comm" in
-    *node*|*python*)
+  case "$base" in
+    MainThread)
       args=$(ps -o args= -p "$pid" 2>/dev/null)
-      printf '%s' "$args" | grep -qE "$FM_HARNESS_RE"
+      fm_harness_is_cursor "$base" "$args"
       ;;
-    *) return 1 ;;
+    *)
+      case "$comm" in
+        *node*|*python*)
+          args=$(ps -o args= -p "$pid" 2>/dev/null)
+          printf '%s' "$args" | grep -qE "$FM_HARNESS_RE"
+          ;;
+        *) return 1 ;;
+      esac
+      ;;
   esac
 }
 

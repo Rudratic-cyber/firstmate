@@ -648,6 +648,55 @@ test_cursor_halfblock_rule_does_not_affect_bordered_harnesses() {
   pass "fm_tmux_composer_state: half-block tracking never crosses over into an unrelated real bordered box"
 }
 
+# A torn capture can leave the TOP half of a newer rule on screen while its
+# bottom edge is still below the visible pane. That later unpaired ▄ must not
+# discard the complete pair already proven above it, or the guard silently
+# disappears and the bare-row fallback returns to proving a live Cursor
+# composer "empty" - the exact verdict fm_tmux_submit_enter_core accepts as
+# delivery. Last COMPLETE pair wins.
+test_cursor_halfblock_unpaired_rule_keeps_the_last_complete_pair() {
+  local dir fb capture blank_row out rule_top rule_bottom
+  dir="$TMP_ROOT/cursor-halfblock-unpaired"; mkdir -p "$dir"
+  fb=$(make_fake_tmux "$dir")
+  capture="$dir/styled.txt"
+  blank_row="$dir/cursor-row.txt"
+  printf '\n' > "$blank_row"
+  rule_top=$(printf '\xe2\x96\x84%.0s' $(seq 1 40))
+  rule_bottom=$(printf '\xe2\x96\x80%.0s' $(seq 1 40))
+  printf '\033[38;2;21;21;21m%s\n' "$rule_top" > "$capture"
+  printf '\033[48;2;21;21;21m \xe2\x86\x92 unsent pending text example\033[7m \033[0m\n' >> "$capture"
+  printf '\033[38;2;21;21;21m%s\n' "$rule_bottom" >> "$capture"
+  printf '  \033[2mAuto\033[0m\n' >> "$capture"
+  printf '\033[38;2;21;21;21m%s\n' "$rule_top" >> "$capture"
+  printf '\n' >> "$capture"
+  out=$(PATH="$fb:$PATH" FM_FAKE_STYLED="$capture" FM_FAKE_ROW="$blank_row" FM_FAKE_CY=5 \
+    fm_tmux_composer_state "fakepane")
+  [ "$out" = unknown ] \
+    || fail "a later unpaired half-block rule must not discard the complete pair above it, got '$out'"
+  pass "fm_tmux_composer_state: a torn later half-block rule keeps the last complete pair's guard"
+}
+
+# The guard must not fire on incidental block glyphs. A lone ▄ or ▀ on its own
+# trimmed row (a sparkline stub, a progress-bar remnant) is not a composer
+# rule, so an existing verified harness's pane keeps its pre-Cursor verdict.
+test_short_halfblock_runs_are_not_composer_rules() {
+  local dir fb capture blank_row out
+  dir="$TMP_ROOT/halfblock-too-short"; mkdir -p "$dir"
+  fb=$(make_fake_tmux "$dir")
+  capture="$dir/styled.txt"
+  blank_row="$dir/cursor-row.txt"
+  printf '\n' > "$blank_row"
+  printf '\xe2\x96\x84\n' > "$capture"
+  printf 'build 42 finished\n' >> "$capture"
+  printf '\xe2\x96\x80\n' >> "$capture"
+  printf '\n' >> "$capture"
+  out=$(PATH="$fb:$PATH" FM_FAKE_STYLED="$capture" FM_FAKE_ROW="$blank_row" FM_FAKE_CY=3 \
+    fm_tmux_composer_state "fakepane")
+  [ "$out" = empty ] \
+    || fail "a one-glyph block run must not be read as a composer rule, got '$out'"
+  pass "fm_tmux_composer_state: incidental short block-glyph runs leave existing harnesses' verdicts unchanged"
+}
+
 # --- fm-peek.sh stays escape-free (LLM-facing path) -------------------------
 
 test_peek_output_is_escape_free() {
@@ -705,4 +754,6 @@ test_non_bordered_composer_uses_compatibility_fallback
 test_non_bordered_interior_edges_are_pending
 test_cursor_halfblock_rule_with_cursor_outside_is_unknown
 test_cursor_halfblock_rule_does_not_affect_bordered_harnesses
+test_cursor_halfblock_unpaired_rule_keeps_the_last_complete_pair
+test_short_halfblock_runs_are_not_composer_rules
 test_peek_output_is_escape_free
