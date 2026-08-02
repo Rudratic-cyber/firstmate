@@ -663,12 +663,14 @@ test_cursor_halfblock_unpaired_rule_keeps_the_last_complete_pair() {
   printf '\n' > "$blank_row"
   rule_top=$(printf '\xe2\x96\x84%.0s' $(seq 1 40))
   rule_bottom=$(printf '\xe2\x96\x80%.0s' $(seq 1 40))
-  printf '\033[38;2;21;21;21m%s\n' "$rule_top" > "$capture"
-  printf '\033[48;2;21;21;21m \xe2\x86\x92 unsent pending text example\033[7m \033[0m\n' >> "$capture"
-  printf '\033[38;2;21;21;21m%s\n' "$rule_bottom" >> "$capture"
-  printf '  \033[2mAuto\033[0m\n' >> "$capture"
-  printf '\033[38;2;21;21;21m%s\n' "$rule_top" >> "$capture"
-  printf '\n' >> "$capture"
+  {
+    printf '\033[38;2;21;21;21m%s\n' "$rule_top"
+    printf '\033[48;2;21;21;21m \xe2\x86\x92 unsent pending text example\033[7m \033[0m\n'
+    printf '\033[38;2;21;21;21m%s\n' "$rule_bottom"
+    printf '  \033[2mAuto\033[0m\n'
+    printf '\033[38;2;21;21;21m%s\n' "$rule_top"
+    printf '\n'
+  } > "$capture"
   out=$(PATH="$fb:$PATH" FM_FAKE_STYLED="$capture" FM_FAKE_ROW="$blank_row" FM_FAKE_CY=5 \
     fm_tmux_composer_state "fakepane")
   [ "$out" = unknown ] \
@@ -686,10 +688,12 @@ test_short_halfblock_runs_are_not_composer_rules() {
   capture="$dir/styled.txt"
   blank_row="$dir/cursor-row.txt"
   printf '\n' > "$blank_row"
-  printf '\xe2\x96\x84\n' > "$capture"
-  printf 'build 42 finished\n' >> "$capture"
-  printf '\xe2\x96\x80\n' >> "$capture"
-  printf '\n' >> "$capture"
+  {
+    printf '\xe2\x96\x84\n'
+    printf 'build 42 finished\n'
+    printf '\xe2\x96\x80\n'
+    printf '\n'
+  } > "$capture"
   out=$(PATH="$fb:$PATH" FM_FAKE_STYLED="$capture" FM_FAKE_ROW="$blank_row" FM_FAKE_CY=3 \
     fm_tmux_composer_state "fakepane")
   [ "$out" = empty ] \
