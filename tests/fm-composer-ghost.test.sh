@@ -629,6 +629,51 @@ test_cursor_halfblock_rule_with_cursor_outside_is_unknown() {
   pass "fm_tmux_composer_state: a half-block rule pair with the cursor outside it is unknown, never empty"
 }
 
+test_cursor_halfblock_incomplete_rule_cannot_disarm_the_guard() {
+  local dir fb capture out rule_top rule_bottom
+  dir="$TMP_ROOT/cursor-halfblock-incomplete"; mkdir -p "$dir"
+  fb=$(make_fake_tmux "$dir")
+  capture="$dir/styled.txt"
+  rule_top=$(printf '\xe2\x96\x84%.0s' $(seq 1 40))
+  rule_bottom=$(printf '\xe2\x96\x80%.0s' $(seq 1 40))
+  # A complete rule pair followed by a TRAILING lone opening rule (the pane
+  # redrew and the capture clipped the new closing rule). The trailing rule
+  # must not discard the completed pair, or the cursor parked below it falls
+  # through to the bare-row read the guard exists to prevent.
+  {
+    printf '%s\n' "$rule_top"
+    printf '  \xe2\x86\x92 unsent pending text example\n'
+    printf '%s\n' "$rule_bottom"
+    printf '\n'
+    printf '%s\n' "$rule_top"
+  } > "$capture"
+  out=$(PATH="$fb:$PATH" FM_FAKE_STYLED="$capture" FM_FAKE_CY=3 \
+    fm_tmux_composer_state "fakepane")
+  [ "$out" = unknown ] \
+    || fail "a trailing incomplete half-block rule must not disarm the completed-pair guard, got '$out'"
+  # Only the CLOSING rule is inside the captured region (the composer's top
+  # rule scrolled off): the cursor below it is still provably outside.
+  {
+    printf '%s\n' "$rule_bottom"
+    printf '\n'
+  } > "$capture"
+  out=$(PATH="$fb:$PATH" FM_FAKE_STYLED="$capture" FM_FAKE_CY=1 \
+    fm_tmux_composer_state "fakepane")
+  [ "$out" = unknown ] \
+    || fail "a clipped-top half-block rule must still refuse the bare-row fallback below it, got '$out'"
+  # Only the OPENING rule is inside the captured region: the cursor above it
+  # is outside the composer the same way.
+  {
+    printf '\n'
+    printf '%s\n' "$rule_top"
+  } > "$capture"
+  out=$(PATH="$fb:$PATH" FM_FAKE_STYLED="$capture" FM_FAKE_CY=0 \
+    fm_tmux_composer_state "fakepane")
+  [ "$out" = unknown ] \
+    || fail "a clipped-bottom half-block rule must still refuse the bare-row fallback above it, got '$out'"
+  pass "fm_tmux_composer_state: incomplete half-block rules never reopen the false-empty fallback"
+}
+
 test_cursor_halfblock_rule_does_not_affect_bordered_harnesses() {
   local dir fb capture out
   dir="$TMP_ROOT/cursor-halfblock-no-crossover"; mkdir -p "$dir"
@@ -701,6 +746,65 @@ test_short_halfblock_runs_are_not_composer_rules() {
   pass "fm_tmux_composer_state: incidental short block-glyph runs leave existing harnesses' verdicts unchanged"
 }
 
+# --- Antigravity's bare, non-bordered ">" composer (2026-08-02) -------------
+#
+# agy draws its composer as a single content row (a "> " prompt glyph styled
+# 38;5;69, followed by the typed text) between two full-width plain U+2500
+# rules - no enclosing box family, and no half-block rule either. Unlike
+# cursor-agent, the real terminal cursor (#{cursor_y}) DOES track that exact
+# row, so the shared bare-row fallback reads the right row. The safety of the
+# idle case rests entirely on fm_composer_classify_content's dead-shell-prompt
+# rule: a bare ">" OUTSIDE a bordered box is unknown, never empty, because it
+# cannot be told apart from a dead shell. That rule already returns "empty"
+# for the sibling bare glyphs "❯"/"›", so extending it to ">" would silently
+# make every idle agy pane read proven-empty - fm-send would confirm a
+# delivery that never landed and the away-mode injector would treat a pane
+# holding unsubmitted text as an injection target, the Kimi/Cursor
+# silent-drop class. These two fixtures pin that verdict down. FM_FAKE_ROW
+# carries the styled composer row alone, matching the -S <cy> -E <cy>
+# fallback capture the real detector issues.
+test_antigravity_bare_prompt_glyph_idle_is_unknown() {
+  local dir fb capture row_capture out rule
+  dir="$TMP_ROOT/antigravity-idle"; mkdir -p "$dir"
+  fb=$(make_fake_tmux "$dir")
+  capture="$dir/styled.txt"
+  row_capture="$dir/row.txt"
+  rule=$(printf '\xe2\x94\x80%.0s' $(seq 1 60))
+  {
+    printf '%s\n' "$rule"
+    printf '\033[38;5;69m> \033[0m\n'
+    printf '%s\n' "$rule"
+    printf '  ? for shortcuts\n'
+  } > "$capture"
+  printf '\033[38;5;69m> \033[0m\n' > "$row_capture"
+  out=$(PATH="$fb:$PATH" LC_ALL=C FM_FAKE_STYLED="$capture" \
+    FM_FAKE_ROW="$row_capture" FM_FAKE_CY=1 fm_tmux_composer_state "fakepane")
+  [ "$out" = unknown ] \
+    || fail "agy's idle bare '>' composer must classify unknown, never empty, got '$out'"
+  pass "fm_tmux_composer_state: agy's bare '>' composer glyph is unknown when idle, never proven empty"
+}
+
+test_antigravity_bare_prompt_glyph_with_text_is_pending() {
+  local dir fb capture row_capture out rule
+  dir="$TMP_ROOT/antigravity-pending"; mkdir -p "$dir"
+  fb=$(make_fake_tmux "$dir")
+  capture="$dir/styled.txt"
+  row_capture="$dir/row.txt"
+  rule=$(printf '\xe2\x94\x80%.0s' $(seq 1 60))
+  {
+    printf '%s\n' "$rule"
+    printf '\033[38;5;69m> \033[0mreview the treehouse pool allocator\n'
+    printf '%s\n' "$rule"
+    printf '  ? for shortcuts\n'
+  } > "$capture"
+  printf '\033[38;5;69m> \033[0mreview the treehouse pool allocator\n' > "$row_capture"
+  out=$(PATH="$fb:$PATH" LC_ALL=C FM_FAKE_STYLED="$capture" \
+    FM_FAKE_ROW="$row_capture" FM_FAKE_CY=1 fm_tmux_composer_state "fakepane")
+  [ "$out" = pending ] \
+    || fail "real unsubmitted text on agy's bare '>' composer row must classify pending, got '$out'"
+  pass "fm_tmux_composer_state: real unsubmitted text on agy's bare '>' row is pending"
+}
+
 # --- fm-peek.sh stays escape-free (LLM-facing path) -------------------------
 
 test_peek_output_is_escape_free() {
@@ -757,7 +861,10 @@ test_legitimate_empty_routes_remain_empty
 test_non_bordered_composer_uses_compatibility_fallback
 test_non_bordered_interior_edges_are_pending
 test_cursor_halfblock_rule_with_cursor_outside_is_unknown
+test_cursor_halfblock_incomplete_rule_cannot_disarm_the_guard
 test_cursor_halfblock_rule_does_not_affect_bordered_harnesses
 test_cursor_halfblock_unpaired_rule_keeps_the_last_complete_pair
 test_short_halfblock_runs_are_not_composer_rules
+test_antigravity_bare_prompt_glyph_idle_is_unknown
+test_antigravity_bare_prompt_glyph_with_text_is_pending
 test_peek_output_is_escape_free

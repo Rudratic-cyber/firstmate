@@ -274,6 +274,20 @@ test_cursor_unverified_gate() {
   pass "cursor classifies unknown until a semantic source passes its verification gate"
 }
 
+test_antigravity_unverified_gate() {
+  local state gen out
+  state=$(new_state_dir antigravity-gate)
+  gen=$("$EV" arm "$state" t1)
+  "$EV" apply "$state" t1 busy --gen "$gen" --source antigravity-hook --event user-prompt-submit
+  out=$(fm_busy_classify tmux w1 antigravity t1 "$state")
+  [ "$out" = "unknown antigravity-unverified" ] || fail "unverified antigravity must classify unknown, got '$out'"
+  out=$(fm_busy_classify tmux w1 antigravity t1 "$state" 'esc to cancel')
+  [ "$out" = "unknown antigravity-unverified" ] || fail "antigravity must not classify from footer text, got '$out'"
+  [ -z "$(fm_busy_sources_for_harness antigravity)" ] \
+    || fail "antigravity must trust no semantic source until one is verified"
+  pass "antigravity classifies unknown until a semantic source passes its verification gate"
+}
+
 test_kimi_unverified_gate() {
   local state gen out
   state=$(new_state_dir kimi-gate)
@@ -386,6 +400,7 @@ test_converted_adapters_ignore_footer_text
 test_grok_regex_isolated
 test_codex_unverified_gate
 test_cursor_unverified_gate
+test_antigravity_unverified_gate
 test_kimi_unverified_gate
 test_dead_endpoint_overrides
 test_herdr_native_busy_only

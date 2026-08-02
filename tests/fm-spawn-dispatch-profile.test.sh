@@ -505,6 +505,52 @@ test_cursor_threads_model_and_ignores_effort_axis() {
   pass "cursor receives --model plus --force/--trust and omits the nonexistent effort axis"
 }
 
+test_antigravity_threads_model_before_prompt_and_ignores_effort_axis() {
+  local rec id out status launch
+  id=profile-antigravity-z9
+  rec=$(make_spawn_case profile-antigravity antigravity "$id")
+  read_case_record "$rec"
+
+  out=$(run_spawn "$HOME_DIR" "$WT_DIR" "$FAKEBIN_DIR" "$LAUNCH_LOG" "$id" "$PROJ_DIR" --model claude-sonnet-4-6 --effort medium)
+  status=$?
+  expect_code 0 "$status" "antigravity spawn with model and ignored effort should succeed"
+  assert_meta_profile "$HOME_DIR/state/$id.meta" antigravity claude-sonnet-4-6 medium
+  launch=$(cat "$LAUNCH_LOG")
+  assert_contains "$launch" "agy --dangerously-skip-permissions --new-project --model 'claude-sonnet-4-6' -i" \
+    "antigravity launch did not thread model before -i, or lost --dangerously-skip-permissions/--new-project"
+  assert_not_contains "$launch" "--effort" "antigravity launch must not pass the unsafe --effort flag"
+  assert_not_contains "$launch" "--thinking" "antigravity launch must not pass pi's thinking flag"
+  assert_not_contains "$launch" "--reasoning-effort" "antigravity launch must not pass grok's reasoning-effort flag"
+  assert_contains "$launch" "fm-operational-input.sh' encode launch-brief" \
+    "antigravity launch lost the canonical typed launch-brief envelope"
+  pass "antigravity receives --model placed before -i and omits the unsafe effort axis"
+}
+
+# fm-spawn deliberately adds NO dispatch-time model validation for antigravity.
+# gemini-3.5-flash-low is the recorded counter-example to the fold-effort-into-
+# the-model-id strategy: agy 1.1.9 silently runs it at Medium (harness-adapters
+# skill, Antigravity section). That unreliability is documented, not enforced -
+# firstmate threads whatever model id it was given through verbatim rather than
+# maintaining a rejection list that would go stale against agy's own catalogue.
+# This pins that choice so a later "helpful" validation arm cannot appear
+# unnoticed, and pins the whole launch shape as byte-exact for the id.
+test_antigravity_threads_a_silently_substituting_model_id_verbatim() {
+  local rec id out status launch expected
+  id=profile-antigravity-z9b
+  rec=$(make_spawn_case profile-antigravity-verbatim antigravity "$id")
+  read_case_record "$rec"
+
+  out=$(run_spawn "$HOME_DIR" "$WT_DIR" "$FAKEBIN_DIR" "$LAUNCH_LOG" "$id" "$PROJ_DIR" --model gemini-3.5-flash-low)
+  status=$?
+  expect_code 0 "$status" "antigravity spawn must not reject a known-silently-substituting model id: $out"
+  assert_contains "$out" "spawned $id harness=antigravity" "antigravity spawn did not complete normally"
+  assert_meta_profile "$HOME_DIR/state/$id.meta" antigravity gemini-3.5-flash-low default
+  launch=$(cat "$LAUNCH_LOG")
+  expected="agy --dangerously-skip-permissions --new-project --model 'gemini-3.5-flash-low' -i \"\$('${ROOT}/bin/fm-operational-input.sh' encode launch-brief < '$HOME_DIR/data/$id/brief.md')\""
+  [ "$launch" = "$expected" ] || fail "antigravity launch is not the byte-exact verbatim-model command"$'\n'"expected: $expected"$'\n'"actual:   $launch"
+  pass "antigravity threads a documented silently-substituting model id verbatim, adding no dispatch-time validation"
+}
+
 test_pi_threads_model_and_max_effort() {
   local rec id out status launch
   id=profile-pi-z8
@@ -708,6 +754,8 @@ test_grok_omits_invalid_max_reasoning_effort
 test_grok_omits_invalid_xhigh_reasoning_effort
 test_opencode_threads_model_and_ignores_effort_axis
 test_cursor_threads_model_and_ignores_effort_axis
+test_antigravity_threads_model_before_prompt_and_ignores_effort_axis
+test_antigravity_threads_a_silently_substituting_model_id_verbatim
 test_pi_threads_model_and_max_effort
 test_pi_signed_threads_shared_pi_profile_and_preserves_identity
 test_pi_signed_missing_binary_refuses_before_endpoint_or_metadata

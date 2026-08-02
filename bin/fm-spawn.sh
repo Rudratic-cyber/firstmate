@@ -70,7 +70,7 @@
 #   profile consultation. A --secondmate spawn is exempt and resolves the SECONDMATE
 #   harness (config/secondmate-harness -> config/crew-harness -> own), so the
 #   secondmate-vs-crewmate split is DURABLE across every respawn (recovery,
-#   /updatefirstmate, restart). A bare adapter name (claude|codex|opencode|pi|pi-signed|grok|kimi|cursor)
+#   /updatefirstmate, restart). A bare adapter name (claude|codex|opencode|pi|pi-signed|grok|kimi|cursor|antigravity)
 #   overrides it for this spawn (either kind, except cursor, which fm-spawn refuses
 #   for --secondmate: it is a crewmate/scout runtime only - see the refusal below
 #   for the reason, and the harness-adapters skill's cursor section for the
@@ -125,6 +125,11 @@
 # (bin/fm-busy-lib.sh's fm_busy_cursor_semantic_source records the negative
 # probe), so no turn-end hook is installed for it; it classifies unknown
 # cursor-unverified like Codex until a real semantic source is found.
+# antigravity (agy) has real Stop/PostToolUse hooks per its own changelog,
+# but wiring one was left as a follow-up (bin/fm-busy-lib.sh's
+# fm_busy_antigravity_semantic_source records why), so no turn-end hook is
+# installed for it; it classifies unknown antigravity-unverified like Cursor
+# until a real semantic source is wired.
 # On success prints: spawned <id> harness=<name> kind=<ship|scout|secondmate> mode=<mode> yolo=<on|off> window=<backend-target> worktree=<path>
 # mode/yolo are resolved per-project from data/projects.md for ship/scout tasks;
 # secondmate spawns record mode=secondmate, yolo=off, home=, and projects=.
@@ -432,7 +437,7 @@ FIRSTMATE_HOME=
 
 if [ "$KIND" = secondmate ]; then
   case "${POS[1]:-}" in
-    ''|claude|codex|opencode|pi|pi-signed|grok|kimi|cursor)
+    ''|claude|codex|opencode|pi|pi-signed|grok|kimi|cursor|antigravity)
       ARG3=${POS[1]:-}
       ;;
     *' '*)
@@ -517,6 +522,54 @@ launch_template() {
     # wiring (see the comment above and bin/fm-busy-lib.sh), so the template
     # is identical for ship/scout/secondmate.
     cursor) printf '%s' 'cursor-agent --force --trust __MODELFLAG__"$(__OPINPUT__ encode launch-brief < __BRIEF__)"' ;;
+    # antigravity (agy, the Antigravity CLI - NOT the language_server_linux_x64
+    # binary bundled with the Antigravity editor, whose own standalone `-cli`
+    # mode was live-tested and never produced a response in any invocation
+    # shape (bare, -print, -agent_mode): it hangs indefinitely with zero
+    # stdout/stderr while its own log shows 401 UNAUTHENTICATED, because the
+    # installed /usr/share/antigravity build contains none of the CLI/auth
+    # code paths agy does - verified by string search: zero occurrences of
+    # "Creating CLI server backend", "keyringAuth: loaded token", or
+    # "ChainedAuth" in that binary, all present in agy). agy is a separate
+    # ~193MB executable (verified 1.1.9, installed at ~/.local/bin/agy, found
+    # on PATH) with its own mature CLI surface (print/interactive modes,
+    # --model, --dangerously-skip-permissions, Stop/PostToolUse hooks per its
+    # own changelog) that shares Antigravity's backend and authenticates
+    # successfully. An initial prompt passed to the `-i`/--prompt-interactive
+    # valued flag starts the supervised interactive session and runs
+    # immediately once autonomy is granted
+    # (verified: same shape as claude/grok, not Kimi's launch-then-send;
+    # a multi-line brief was also verified to run correctly as one message).
+    # --dangerously-skip-permissions is required for unattended tool use:
+    # verified live that WITHOUT it, a tool call auto-denies fast with a
+    # clear stderr message and exit 2 (not a hang), and WITH it the same call
+    # completes. --new-project is required for tool execution to target the
+    # actual launch cwd: verified live that omitting it silently runs shell
+    # commands in a shared ~/.gemini/antigravity-cli/scratch/ directory
+    # instead of the worktree agy reports itself as launched in, which would
+    # silently break every crewmate's file edits. No trust dialog was
+    # observed in any of 8+ never-before-seen directories (including the
+    # treehouse pool path) with --dangerously-skip-permissions set, unlike
+    # cursor-agent's separate --trust requirement above. __MODELFLAG__ is
+    # emitted before `-i`, which is the placement verified to win - but NOT
+    # because `-i` is a positional argument: it is a valued flag
+    # (--prompt-interactive), and --model placed after `-i "<prompt>"` was
+    # verified live to be honored too, so flag order relative to `-i` is not
+    # the mechanism. What was verified to silently drop --model is a bare
+    # positional prompt (`agy ... '<prompt>' --model <model>`, no `-i`). The
+    # fallback target was NOT root-caused: every observed bare-positional DROP
+    # landed on Gemini 3.6 Flash (High) regardless of what the preceding
+    # launch in the same HOME had set, so it is an unexplained default, not
+    # the last-used model. That fixed target covers the drop paths only -
+    # silent substitutions on the --model-is-honored path do not all land
+    # there (see the harness-adapters skill). The shipped placement is correct
+    # under every shape observed and does not change;
+    # --effort is never emitted for antigravity (see effort_flag_for_harness)
+    # for the same reason cursor omits it.
+    # agy has no turn-end hook or busy-state wiring (see the comment above
+    # and bin/fm-busy-lib.sh), so the template is identical for
+    # ship/scout/secondmate.
+    antigravity) printf '%s' 'agy --dangerously-skip-permissions --new-project __MODELFLAG__-i "$(__OPINPUT__ encode launch-brief < __BRIEF__)"' ;;
     *) return 1 ;;
   esac
 }
@@ -642,7 +695,7 @@ model_flag_for_harness() {
   local harness=$1 model=$2
   [ -n "$model" ] && [ "$model" != default ] || return 0
   case "$harness" in
-    claude|codex|opencode|pi|pi-signed|grok|kimi|cursor)
+    claude|codex|opencode|pi|pi-signed|grok|kimi|cursor|antigravity)
       printf -- '--model %s ' "$(shell_quote "$model")"
       ;;
   esac
@@ -694,6 +747,28 @@ effort_flag_for_harness() {
     # Firstmate resolves the intended effort into the chosen --model value
     # at intake instead; a separately requested --effort stays recorded in
     # task metadata but is never honored by any flag here.
+    # antigravity (agy) DOES expose a real --effort low|medium|high flag,
+    # unlike cursor's total absence of one, but it is unsafe to use: agy
+    # 1.1.9 verified live to silently misbehave when --effort is combined
+    # with an explicit --model. `--model claude-sonnet-4-6 --effort medium`
+    # silently fell back to agy's default model (Gemini) with no error,
+    # confirmed by asking the running session to name its own model, while
+    # claude-sonnet-4-6 on its own is honored every time. The supported
+    # statement is exactly that - adding --effort dropped the requested model
+    # to the default; the mechanism is unknown. It is NOT that --effort
+    # overrides a model's own baked-in suffix: that reading came only from
+    # `--model gemini-3.5-flash-low --effort low` running as "Gemini 3.5 Flash
+    # (Medium)", and the same command with --effort REMOVED produces the same
+    # (Medium) banner, so that one is an id-level silent substitution
+    # unrelated to --effort. Every listed antigravity model already bakes
+    # effort into its id where applicable
+    # (gemini-3.6-flash-high/medium/low, claude-sonnet-4-6 with none) per
+    # `agy models`, so firstmate resolves the intended effort into the chosen
+    # --model value at intake, exactly like cursor; a separately requested
+    # --effort stays recorded in task metadata but is never honored by a flag.
+    # Caveat recorded in the harness-adapters skill: that fold-into-the-id
+    # strategy is not proven for every id - gemini-3.5-flash-low silently
+    # runs at Medium.
   esac
 }
 
@@ -1433,6 +1508,12 @@ if [ "$KIND" != secondmate ]; then
         exit 1
       fi
       ;;
+    antigravity*)
+      if fm_busy_antigravity_semantic_source; then
+        echo "error: antigravity semantic busy-state wiring is not implemented; extend the probe only together with verified wiring" >&2
+        exit 1
+      fi
+      ;;
   esac
   case "$HARNESS" in
     claude*|opencode*|pi|pi-signed)
@@ -1642,6 +1723,14 @@ EOF
       # pane worker can observe, so Cursor classifies unknown
       # cursor-unverified rather than falling back to idle, and no busy or
       # turn-end wiring is installed.
+      ;;
+    antigravity*)
+      # Semantic busy-state source negotiation (bin/fm-busy-lib.sh's
+      # fm_busy_antigravity_semantic_source owns the probe and the evidence):
+      # agy's own real Stop/PostToolUse hooks were not wired (a follow-up-sized
+      # project of its own), so Antigravity classifies unknown
+      # antigravity-unverified rather than falling back to idle, and no busy
+      # or turn-end wiring is installed.
       ;;
   esac
 fi

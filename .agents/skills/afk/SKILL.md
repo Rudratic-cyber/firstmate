@@ -84,7 +84,7 @@ The daemon constructs every current injection as the `away-supervisor` kind owne
 The bare `FM_INJECT_MARK` form remains accepted for legacy daemon escalations during rollout.
 U+2063 has no normal keyboard keystroke and survives terminal transport as UTF-8 text.
 This is how firstmate tells a daemon escalation apart from a real message in the same pane.
-The operational prefix travels with the message text; it does not rely on harness-level typed-vs-injected detection, which is not portable across claude, codex, opencode, pi, pi-signed, grok, kimi, and cursor.
+The operational prefix travels with the message text; it does not rely on harness-level typed-vs-injected detection, which is not portable across claude, codex, opencode, pi, pi-signed, grok, kimi, cursor, and antigravity.
 
 ## Busy-guard and composer guard
 
@@ -128,6 +128,10 @@ A bordered-empty or ghost-only composer is recognized as empty where that backen
 `fm-send.sh` uses the same primitive and exits non-zero
 when a steer's Enter is positively swallowed, so firstmate learns an instruction
 did not land instead of leaving it unsubmitted.
+That non-zero-means-unsubmitted reading does not hold for every adapter: on the
+tmux backend, cursor and antigravity panes do not report a proven-empty
+composer, so an `fm-send` to them exits non-zero even after the text landed.
+`harness-adapters` owns that limit and what to do instead of resending.
 
 **Busy-queued Enter exception (tmux backend, opencode 1.18.4).** While opencode
 is mid-turn, Enter is accepted and queued for after the current turn but the
