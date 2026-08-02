@@ -557,11 +557,13 @@ launch_template() {
     # verified live to be honored too, so flag order relative to `-i` is not
     # the mechanism. What was verified to silently drop --model is a bare
     # positional prompt (`agy ... '<prompt>' --model <model>`, no `-i`). The
-    # fallback target was NOT root-caused: every observed drop or substitution
+    # fallback target was NOT root-caused: every observed bare-positional DROP
     # landed on Gemini 3.6 Flash (High) regardless of what the preceding
     # launch in the same HOME had set, so it is an unexplained default, not
-    # the last-used model. The shipped placement is correct under every shape
-    # observed and does not change;
+    # the last-used model. That fixed target covers the drop paths only -
+    # silent substitutions on the --model-is-honored path do not all land
+    # there (see the harness-adapters skill). The shipped placement is correct
+    # under every shape observed and does not change;
     # --effort is never emitted for antigravity (see effort_flag_for_harness)
     # for the same reason cursor omits it.
     # agy has no turn-end hook or busy-state wiring (see the comment above
@@ -750,15 +752,23 @@ effort_flag_for_harness() {
     # 1.1.9 verified live to silently misbehave when --effort is combined
     # with an explicit --model. `--model claude-sonnet-4-6 --effort medium`
     # silently fell back to agy's default model (Gemini) with no error,
-    # confirmed by asking the running session to name its own model; `--model
-    # gemini-3.5-flash-low --effort low` silently ran as "Gemini 3.5 Flash
-    # (Medium)" instead - effort changed the model's OWN baked-in suffix to
-    # an unrequested value rather than composing with it. Every listed
-    # antigravity model already bakes effort into its id where applicable
+    # confirmed by asking the running session to name its own model, while
+    # claude-sonnet-4-6 on its own is honored every time. The supported
+    # statement is exactly that - adding --effort dropped the requested model
+    # to the default; the mechanism is unknown. It is NOT that --effort
+    # overrides a model's own baked-in suffix: that reading came only from
+    # `--model gemini-3.5-flash-low --effort low` running as "Gemini 3.5 Flash
+    # (Medium)", and the same command with --effort REMOVED produces the same
+    # (Medium) banner, so that one is an id-level silent substitution
+    # unrelated to --effort. Every listed antigravity model already bakes
+    # effort into its id where applicable
     # (gemini-3.6-flash-high/medium/low, claude-sonnet-4-6 with none) per
     # `agy models`, so firstmate resolves the intended effort into the chosen
     # --model value at intake, exactly like cursor; a separately requested
     # --effort stays recorded in task metadata but is never honored by a flag.
+    # Caveat recorded in the harness-adapters skill: that fold-into-the-id
+    # strategy is not proven for every id - gemini-3.5-flash-low silently
+    # runs at Medium.
   esac
 }
 
