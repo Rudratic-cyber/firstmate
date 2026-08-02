@@ -49,10 +49,11 @@ detect_own() {
   # GROK_AGENT above; it is not set on the cursor-agent process itself.
   [ "${CURSOR_AGENT:-}" = "1" ] && { echo cursor; return; }
   # Layer 2: walk the parent chain and match the command name.
-  local pid=$$ comm args
+  local pid=$$ comm base args
   for _ in 1 2 3 4 5 6 7 8; do
     comm=$(ps -o comm= -p "$pid" 2>/dev/null) || break
-    case "$(basename -- "$comm")" in
+    base=$(basename -- "$comm")
+    case "$base" in
       *claude*) echo claude; return ;;
       *codex*) echo codex; return ;;
       *opencode*) echo opencode; return ;;
@@ -67,6 +68,16 @@ detect_own() {
         # quirk, not "cursor-agent" or "node"), so it needs its own case
         # entry alongside the generic bare-interpreter fallback.
         args=$(ps -o args= -p "$pid" 2>/dev/null)
+        # A MainThread comm is cursor-agent's own signature, and its argv
+        # carries both a --model id (claude-opus-5-thinking-high,
+        # cursor-grok-4.5-medium) and an expanded launch brief that can name
+        # any other harness, so the cursor match must win for that comm.
+        # node*/python* keep their original arm order untouched.
+        if [ "$base" = MainThread ]; then
+          case "$args" in
+            *cursor-agent*) echo cursor; return ;;
+          esac
+        fi
         case "$args" in
           *claude*) echo claude; return ;;
           *codex*) echo codex; return ;;

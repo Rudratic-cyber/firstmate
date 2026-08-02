@@ -46,7 +46,7 @@ for arg in "$@"; do
 done
 case "$field:$pid" in
   comm=:4242) printf 'MainThread\n' ;;
-  args=:4242) printf '/home/user/.local/bin/cursor-agent --force --trust\n' ;;
+  args=:4242) printf '%s\n' '/home/user/.local/bin/cursor-agent --force --trust --model claude-opus-5-thinking-high you are a firstmate crewmate; port the grok and codex adapter notes' ;;
   comm=:*) printf '/bin/bash\n' ;;
   ppid=:4242) printf '1\n' ;;
   ppid=:*) printf '4242\n' ;;
@@ -58,7 +58,7 @@ SH
   out=$(env -u CLAUDECODE -u PI_CODING_AGENT -u GROK_AGENT -u CURSOR_AGENT \
     PATH="$fakebin:$BASE_PATH" "$ROOT/bin/fm-harness.sh")
   [ "$out" = cursor ] || fail "cursor MainThread+args ancestry detection returned '$out'"
-  pass "fm-harness: cursor-agent's MainThread comm is detected by ancestry via its args after env-marker precedence"
+  pass "fm-harness: cursor-agent's MainThread comm is detected by ancestry via its args, even when the launch template's --model id and brief name other harnesses"
 }
 
 test_mainthread_without_cursor_agent_in_args_stays_unknown() {
@@ -93,6 +93,38 @@ SH
   pass "fm-harness: a MainThread process without cursor-agent in its args stays unknown, never guessed"
 }
 
+test_bare_node_ancestry_order_is_unchanged() {
+  local dir fakebin out
+  dir="$TMP_ROOT/bare-node"
+  fakebin=$(fm_fakebin "$dir")
+  cat > "$fakebin/ps" <<'SH'
+#!/usr/bin/env bash
+set -u
+field=
+pid=
+prev=
+for arg in "$@"; do
+  [ "$prev" = -o ] && field=$arg
+  [ "$prev" = -p ] && pid=$arg
+  prev=$arg
+done
+case "$field:$pid" in
+  comm=:4242) printf 'node\n' ;;
+  args=:4242) printf '%s\n' '/usr/bin/node /opt/claude/cli.js --print port the cursor-agent adapter' ;;
+  comm=:*) printf '/bin/bash\n' ;;
+  ppid=:4242) printf '1\n' ;;
+  ppid=:*) printf '4242\n' ;;
+  args=:*) printf 'bash\n' ;;
+esac
+SH
+  chmod +x "$fakebin/ps"
+
+  out=$(env -u CLAUDECODE -u PI_CODING_AGENT -u GROK_AGENT -u CURSOR_AGENT \
+    PATH="$fakebin:$BASE_PATH" "$ROOT/bin/fm-harness.sh")
+  [ "$out" = claude ] || fail "a bare-node claude process must still detect claude, got '$out'"
+  pass "fm-harness: the cursor arm is gated on the MainThread comm, so bare node*/python* ancestry order is unchanged"
+}
+
 # tmux agent-process liveness for the cursor-agent comm (bin/backends/tmux.sh)
 # is covered by tests/fm-secondmate-liveness.test.sh's
 # test_tmux_agent_state_classifies, which now includes cursor-agent in its
@@ -101,5 +133,6 @@ SH
 test_cursor_env_marker_precedence
 test_cursor_detection_uses_mainthread_ancestry_after_markers
 test_mainthread_without_cursor_agent_in_args_stays_unknown
+test_bare_node_ancestry_order_is_unchanged
 
 echo "all fm-cursor-harness tests passed"
