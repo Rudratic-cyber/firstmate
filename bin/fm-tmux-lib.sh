@@ -90,6 +90,16 @@ FM_TMUX_PI_BUSY_REGEX_DEFAULT='Working\.\.\.'
 FM_TMUX_GROK_BUSY_REGEX_DEFAULT='Ctrl\+c:cancel'
 FM_TMUX_KIMI_BUSY_REGEX_DEFAULT='^[[:space:]]*(🌑|🌒|🌓|🌔|🌕|🌖|🌗|🌘)[[:space:]]+·[[:space:]]+'
 
+# Shortest run of ▄ or ▀ that fm_tmux_find_composer_box will treat as one edge
+# of Cursor CLI's borderless composer rule. Deliberately far below any real
+# pane width: a rule that is missed only disables a safety guard, so the
+# threshold exists to reject incidental block-glyph runs (a lone glyph, a
+# sparkline stub), not to measure "full width". Compared against ${#row},
+# which counts characters under a UTF-8 locale and bytes (3 per glyph) under
+# C, so the effective floor is 8 or 3 glyphs depending on the ambient locale;
+# both reject the single-glyph case this guards against.
+FM_TMUX_HALFBLOCK_RULE_MIN=8
+
 fm_busy_lines_match() {  # [harness]
   local harness=${1:-} lines regex
   IFS= read -r -d '' lines || true
@@ -189,10 +199,41 @@ fm_tmux_find_composer_box() {  # <cursor-y> <plain-visible-pane> -> "<top> <bott
   local content_inner content_spaces bottom_inner bottom_spaces
   local current_indent=
   local row=0 top=-1 valid=0 content_rows=0 unsafe=0 cursor_structural=0
+  local hb_open=-1 hb_top=-1 hb_bottom=-1 hb_probe
   while IFS= read -r line; do
     indent=${line%%[![:space:]]*}
     left_stripped="${line#"${line%%[![:space:]]*}"}"
     trimmed="${left_stripped%"${left_stripped##*[![:space:]]}"}"
+    # A full-width half-block rule pair (solid rows of only ▄ then only ▀,
+    # Cursor CLI's borderless composer edge) is not a recognized box family
+    # below, so it never resolves top/bottom/content here. It is still real
+    # composer structure the shared box scan cannot classify - tracked
+    # separately (last COMPLETE pair wins: hb_top/hb_bottom only ever move
+    # together, so a later unpaired ▄ opens a candidate without discarding an
+    # already-proven pair) so the caller can refuse the bare-row fallback when
+    # the cursor sits outside it (see unsafe check after the loop). A row must
+    # also be at least FM_TMUX_HALFBLOCK_RULE_MIN wide to count as a rule, so
+    # an incidental one-glyph or few-glyph block run is not mistaken for a
+    # composer edge. No existing verified harness draws a solid full-width
+    # ▄/▀ rule, so this adds no false positives for
+    # claude/codex/opencode/pi/grok/kimi.
+    case "$trimmed" in
+      '▄'*)
+        hb_probe=${trimmed//▄/}
+        if [ -z "$hb_probe" ] && [ "${#trimmed}" -ge "$FM_TMUX_HALFBLOCK_RULE_MIN" ]; then
+          hb_open=$row
+        fi
+        ;;
+      '▀'*)
+        hb_probe=${trimmed//▀/}
+        if [ -z "$hb_probe" ] && [ "${#trimmed}" -ge "$FM_TMUX_HALFBLOCK_RULE_MIN" ] \
+           && [ "$hb_open" -ge 0 ]; then
+          hb_top=$hb_open
+          hb_bottom=$row
+          hb_open=-1
+        fi
+        ;;
+    esac
     kind=
     family=
     case "$trimmed" in
@@ -294,6 +335,15 @@ fm_tmux_find_composer_box() {  # <cursor-y> <plain-visible-pane> -> "<top> <bott
 $pane
 EOF
   if [ "$top" -ge 0 ] && [ "$top" -lt "$cy" ]; then
+    unsafe=1
+  fi
+  # A complete half-block rule pair exists but the cursor sits outside it
+  # (Cursor CLI parks the real terminal cursor off the visible composer -
+  # see the harness-adapters skill's Cursor section): the bare-row fallback
+  # below would read whatever blank/unrelated row the cursor is actually on
+  # and misreport it as a proven-empty composer. Force unknown instead.
+  if [ "$hb_top" -ge 0 ] && [ "$hb_bottom" -ge "$hb_top" ] \
+     && { [ "$cy" -le "$hb_top" ] || [ "$cy" -gt "$hb_bottom" ]; }; then
     unsafe=1
   fi
   if [ "$unsafe" = 1 ] || [ "$cursor_structural" = 1 ]; then

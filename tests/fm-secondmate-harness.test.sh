@@ -554,6 +554,72 @@ test_spawn_unverified_secondmate_harness_refused() {
   pass "B6 spawn: an unverified resolved secondmate harness is refused (guard intact)"
 }
 
+# cursor is a verified crewmate/scout runtime, so it is NOT caught by the
+# unverified-adapter guard above (launch_template has a real cursor entry).
+# It still must be refused for --secondmate: a secondmate runs its own
+# primary Firstmate session in its own home, and cursor has none of the
+# four primary-session integrations that requires (turn-end guard, PreToolUse
+# seatbelt, session-start nudge, primary watcher supervision), and as a
+# consequence no session-lock identity either. Reaffirmed after an
+# earlier fix round widened bin/fm-session-lock-lib.sh instead of narrowing
+# this acceptance - the correct fix is this refusal, not a lock identity.
+test_spawn_cursor_secondmate_refused() {
+  local w sm fakebin err rc
+  w="$TMP_ROOT/spawn-cursor-secondmate"
+  sm="$w/sm"
+  mkdir -p "$w/home/config" "$w/home/state"
+  printf 'cursor\n' > "$w/home/config/secondmate-harness"
+  make_seeded_home "$sm" sm
+  fakebin=$(make_noop_tmux "$w/tmux")
+  err="$w/spawn.err"
+  rc=0
+  PATH="$fakebin:$BASE_PATH" TMUX='' CLAUDECODE=1 \
+    FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$w/home" \
+    FM_STATE_OVERRIDE="$w/home/state" FM_DATA_OVERRIDE="$w/home/data" \
+    FM_PROJECTS_OVERRIDE="$w/home/projects" FM_CONFIG_OVERRIDE="$w/home/config" \
+    FM_SPAWN_NO_GUARD=1 \
+    "$ROOT/bin/fm-spawn.sh" sm "$sm" --secondmate >/dev/null 2>"$err" || rc=$?
+
+  [ "$rc" -ne 0 ] || fail "cursor secondmate: spawn should have been refused"
+  assert_contains "$(cat "$err")" "cursor is a crewmate/scout runtime only" \
+    "cursor secondmate: error explains the refusal"
+  assert_contains "$(cat "$err")" "cannot host a secondmate" \
+    "cursor secondmate: error is unambiguous about the refusal"
+  [ -e "$w/home/state/sm.meta" ] && fail "cursor secondmate: a meta was written despite the refusal"
+
+  # The same refusal applies through an explicit --harness override, not only
+  # the config/secondmate-harness resolution path.
+  rm -f "$w/home/config/secondmate-harness" "$err"
+  rc=0
+  PATH="$fakebin:$BASE_PATH" TMUX='' CLAUDECODE=1 \
+    FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$w/home" \
+    FM_STATE_OVERRIDE="$w/home/state" FM_DATA_OVERRIDE="$w/home/data" \
+    FM_PROJECTS_OVERRIDE="$w/home/projects" FM_CONFIG_OVERRIDE="$w/home/config" \
+    FM_SPAWN_NO_GUARD=1 \
+    "$ROOT/bin/fm-spawn.sh" sm "$sm" --harness cursor --secondmate >/dev/null 2>"$err" || rc=$?
+  [ "$rc" -ne 0 ] || fail "cursor secondmate (explicit --harness): spawn should have been refused"
+  assert_contains "$(cat "$err")" "cursor is a crewmate/scout runtime only" \
+    "cursor secondmate (explicit --harness): error explains the refusal"
+  [ -e "$w/home/state/sm.meta" ] && fail "cursor secondmate (explicit --harness): a meta was written despite the refusal"
+
+  # The home-omitted positional form (`fm-spawn.sh <id> cursor --secondmate`)
+  # must reach the same refusal, not be mistaken for a firstmate home named
+  # "cursor" that then silently launches the config-resolved harness.
+  rm -f "$err"
+  rc=0
+  PATH="$fakebin:$BASE_PATH" TMUX='' CLAUDECODE=1 \
+    FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$w/home" \
+    FM_STATE_OVERRIDE="$w/home/state" FM_DATA_OVERRIDE="$w/home/data" \
+    FM_PROJECTS_OVERRIDE="$w/home/projects" FM_CONFIG_OVERRIDE="$w/home/config" \
+    FM_SPAWN_NO_GUARD=1 \
+    "$ROOT/bin/fm-spawn.sh" sm cursor --secondmate >/dev/null 2>"$err" || rc=$?
+  [ "$rc" -ne 0 ] || fail "cursor secondmate (positional): spawn should have been refused"
+  assert_contains "$(cat "$err")" "cursor is a crewmate/scout runtime only" \
+    "cursor secondmate (positional): error explains the refusal"
+  [ -e "$w/home/state/sm.meta" ] && fail "cursor secondmate (positional): a meta was written despite the refusal"
+  pass "B6b spawn: cursor is refused as a secondmate harness through config, an explicit --harness override, and the bare positional name"
+}
+
 # ===========================================================================
 # C integration: config/secondmate-harness's optional model/effort tokens thread
 # into the secondmate launch command and meta, durably and without a new file.
@@ -2318,6 +2384,7 @@ test_spawn_backward_compat_crew_fallback
 test_spawn_bare_backward_compat
 test_spawn_explicit_harness_wins
 test_spawn_unverified_secondmate_harness_refused
+test_spawn_cursor_secondmate_refused
 test_spawn_backend_precedence_over_inherited_config
 test_spawn_explicit_backend_precedence_over_env_and_inherited_config
 test_spawn_bare_harness_no_model_effort_flag

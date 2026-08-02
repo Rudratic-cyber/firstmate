@@ -9,6 +9,15 @@
 # This file is sourced by scripts and has no side effects on source.
 
 # Known harness command names; extend when a new adapter is verified.
+# cursor is deliberately NOT here: it is a crewmate/scout runtime only.
+# A secondmate runs its own primary Firstmate session in its own home, and
+# cursor has none of the four primary-session integrations that session would
+# use (no turn-end guard, no PreToolUse seatbelt, no session-start nudge, no
+# primary watcher supervision), so it must not be able to acquire a session
+# lock either - bin/fm-spawn.sh refuses a cursor --secondmate spawn outright,
+# and this file staying additive-only keeps that refusal meaningful instead of
+# leaving a lock identity that would let a cursor secondmate's session run,
+# unsupervised, if one ever existed.
 FM_HARNESS_RE='claude|codex|opencode|grok|kimi|^pi$|^pi-signed$'
 
 # Walk the current process ancestry (up to 16 hops) and print a harness pid.
@@ -66,10 +75,11 @@ fm_harness_ancestry_pid() {
 
 # True if $1 is a live process that looks like a verified harness.
 fm_harness_pid_alive() {
-  local pid=$1 comm args
+  local pid=$1 comm base args
   kill -0 "$pid" 2>/dev/null || return 1
   comm=$(ps -o comm= -p "$pid" 2>/dev/null) || return 1
-  if printf '%s' "$(basename -- "$comm")" | grep -qE "$FM_HARNESS_RE"; then
+  base=$(basename -- "$comm")
+  if printf '%s' "$base" | grep -qE "$FM_HARNESS_RE"; then
     return 0
   fi
   case "$comm" in

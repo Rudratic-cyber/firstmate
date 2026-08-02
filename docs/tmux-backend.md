@@ -46,7 +46,7 @@ Verify setup by spawning a small task and confirming its `fm-<id>` window appear
 
 A target-existence check proves only that the pane exists.
 The deeper tmux agent-liveness probe first verifies exact window membership, then reads `#{pane_current_command}` to distinguish a running harness process from a bare idle shell.
-It classifies recognized Claude, Codex, OpenCode, Pi, pi-signed, Grok, and Kimi process names as `alive`, common shells as `dead`, an authoritatively absent window as `missing`, unreadable state as `unreadable`, and every other process as `ambiguous`.
+It classifies recognized Claude, Codex, OpenCode, Pi, pi-signed, Grok, Kimi, and cursor-agent process names as `alive`, common shells as `dead`, an authoritatively absent window as `missing`, unreadable state as `unreadable`, and every other process as `ambiguous`.
 Only `dead` and `missing` authorize recovery because a false dead result could launch a duplicate agent.
 
 The verified Pi Launcher path reports the exact foreground command `pi-launcher` for both pi and pi-signed, while direct executable identities `pi`, `pi-signed`, and `Pi` remain accepted exactly.
@@ -57,6 +57,7 @@ For a bordered composer, the tmux reader locates the complete box structurally a
 Real text on any content row is pending, while only an unambiguous box with every row empty is proven empty.
 Unreadable, incomplete, or structurally ambiguous boxes fail closed, and panes without a bordered composer retain the compatible cursor-row classification.
 The shared classifier accepts a shell glyph as an empty agent composer only inside a verified bordered composer.
+The structural box scan also recognizes a borderless half-block rule pair (cursor-agent's composer edge) well enough to fail closed to `unknown` when the reported terminal cursor sits outside it, rather than falling through to a misleading bare-row read; the harness-adapters skill's Cursor section owns the verified evidence and consequence for steering.
 A bare shell prompt is `unknown`, so away-mode escalation is never injected into a dead shell.
 
 Busy state is not read from rendered text on this backend.

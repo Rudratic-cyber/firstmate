@@ -323,6 +323,22 @@ test_codex_unverified_until_a_semantic_source_exists() {
   pass "codex classifies unknown until a semantic source is verified, never idle or footer-matched"
 }
 
+test_cursor_unverified_until_a_semantic_source_exists() {
+  local rec id=busy-cu-1 out state
+  rec=$(make_spawn_case cursor-unverified cursor "$id")
+  read_case_record "$rec"
+  out=$(run_spawn "$HOME_DIR" "$WT_DIR" "$FAKEBIN_DIR" "$id" "$PROJ_DIR")
+  expect_code 0 $? "cursor spawn should succeed: $out"
+  state="$HOME_DIR/state"
+  assert_absent "$state/$id.busy-gen" "cursor must not arm a busy contract with no verified semantic source"
+  assert_contains "$out" 'spawned '"$id"' harness=cursor' "cursor spawn did not complete normally"
+  out=$(classify cursor "$id" "$state")
+  [ "$out" = "unknown cursor-unverified" ] || fail "cursor must classify 'unknown cursor-unverified', got '$out'"
+  out=$(fm_busy_classify tmux fake:w cursor "$id" "$state" 'ctrl+c to stop')
+  [ "$out" = "unknown cursor-unverified" ] || fail "cursor must not fall back to its rendered busy footer, got '$out'"
+  pass "cursor classifies unknown until a semantic source is verified, never idle or footer-matched"
+}
+
 test_kimi_and_grok_install_no_unverified_wiring() {
   local state out
   state="$TMP_ROOT/gates/state"
@@ -346,5 +362,6 @@ test_opencode_plugin_semantic_lifecycle
 test_claude_hooks_semantic_lifecycle
 test_claude_hooks_stale_incarnation_harmless
 test_codex_unverified_until_a_semantic_source_exists
+test_cursor_unverified_until_a_semantic_source_exists
 
 echo "all fm-busy-adapter-wiring tests passed"

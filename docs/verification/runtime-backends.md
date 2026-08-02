@@ -30,6 +30,7 @@ zsh
 A persistent parent shell waiting for a child remained reported as the parent process, while a shell that directly execed a simple command changed identity with the process itself.
 Claude, Codex, OpenCode, and Grok were observed under their own process names.
 Kimi Code CLI 0.29.1 was observed under `kimi` on 2026-07-25.
+cursor-agent 2026.07.23-e383d2b was observed under `cursor-agent` on 2026-08-02, while its own `ps -o comm=` reports the literal `MainThread`, so tmux liveness keys on the foreground command while `bin/fm-harness.sh`'s ancestry fallback keys on that separate identity.
 Pi and pi-signed 0.82.0 were reverified on 2026-07-27 through real isolated `fm-spawn.sh` launches.
 
 Installed-wrapper checks:
@@ -86,7 +87,7 @@ tests/fm-kimi-harness.test.sh
 tests/fm-tmux-submit-busy.test.sh
 ```
 
-Expected structural matrix: real text on any content row is pending; all-empty complete boxes are empty; unreadable, incomplete, or unsafe boxes are unknown; and non-bordered panes retain cursor-row compatibility.
+Expected structural matrix: real text on any content row is pending; all-empty complete boxes are empty; unreadable, incomplete, or unsafe boxes are unknown; a complete borderless half-block rule pair with the reported cursor outside it is unsafe, so unknown; and non-bordered panes otherwise retain cursor-row compatibility.
 Expected submit matrix: proven pending plus busy is accepted as queued; proven pending plus idle remains pending; ambiguous pending is never converted by the busy exception; and only a proven empty composer succeeds directly.
 
 ### Cleanup endpoint identity

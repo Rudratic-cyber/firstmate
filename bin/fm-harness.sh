@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Detect the agent harness this process tree runs on.
-# Usage: fm-harness.sh                  print own harness: claude|codex|opencode|pi|pi-signed|grok|kimi|unknown
+# Usage: fm-harness.sh                  print own harness: claude|codex|opencode|pi|pi-signed|grok|kimi|cursor|unknown
 #        fm-harness.sh crew             print the effective CREWMATE harness
 #                                        (config/crew-harness; "default" resolves to own)
 #        fm-harness.sh secondmate       print the harness the PRIMARY uses to launch
@@ -44,11 +44,16 @@ detect_own() {
   # It does NOT set CLAUDECODE despite being Claude-Code-compatible, so this marker
   # is unambiguous when firstmate runs natively on grok.
   [ "${GROK_AGENT:-}" = "1" ] && { echo grok; return; }
+  # cursor-agent sets CURSOR_AGENT=1 for its child/tool processes (verified,
+  # cursor-agent 2026.07.23-e383d2b), the same child-process-marker shape as
+  # GROK_AGENT above; it is not set on the cursor-agent process itself.
+  [ "${CURSOR_AGENT:-}" = "1" ] && { echo cursor; return; }
   # Layer 2: walk the parent chain and match the command name.
-  local pid=$$ comm args
+  local pid=$$ comm base args
   for _ in 1 2 3 4 5 6 7 8; do
     comm=$(ps -o comm= -p "$pid" 2>/dev/null) || break
-    case "$(basename -- "$comm")" in
+    base=$(basename -- "$comm")
+    case "$base" in
       *claude*) echo claude; return ;;
       *codex*) echo codex; return ;;
       *opencode*) echo opencode; return ;;
@@ -56,8 +61,33 @@ detect_own() {
       kimi) echo kimi; return ;;
       pi-signed) echo pi; return ;;
       pi) echo pi; return ;;
+      MainThread)
+        # cursor-agent's own comm is literally "MainThread" (verified,
+        # cursor-agent 2026.07.23-e383d2b: a Node runtime-thread-naming
+        # quirk, not "cursor-agent" or "node"), so it needs this dedicated
+        # arm. bin/fm-session-lock-lib.sh deliberately has NO counterpart:
+        # cursor is a crewmate/scout runtime only and must never resolve as a
+        # session-lock holder. It matches cursor or nothing and
+        # deliberately does NOT fall through to the bare-interpreter argv
+        # patterns below. A cursor-agent argv carries both a --model id
+        # (claude-opus-5-thinking-high, cursor-grok-4.5-medium) and an
+        # expanded launch brief that can name any other harness, so the
+        # cursor match must win outright for this comm rather than be ordered
+        # among those generic patterns; and before cursor existed this comm
+        # matched no arm at all, so running another harness's argv patterns
+        # against it would change an already-verified adapter's result. A
+        # non-cursor MainThread process simply stays unmatched and the
+        # ancestry walk continues to its parent.
+        args=$(ps -o args= -p "$pid" 2>/dev/null)
+        case "$args" in
+          *cursor-agent*) echo cursor; return ;;
+        esac ;;
       node*|python*)
         # Bare interpreter: match the harness name in its script path.
+        # Deliberately no cursor arm here: a node/python ancestor merely
+        # NAMING cursor-agent (an expanded brief, a --print argument) is not
+        # a cursor harness, and matching it would change an already-verified
+        # adapter's result.
         args=$(ps -o args= -p "$pid" 2>/dev/null)
         case "$args" in
           *claude*) echo claude; return ;;

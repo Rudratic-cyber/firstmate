@@ -260,6 +260,20 @@ test_codex_unverified_gate() {
   pass "codex classifies unknown until a semantic source passes its verification gate"
 }
 
+test_cursor_unverified_gate() {
+  local state gen out
+  state=$(new_state_dir cursor-gate)
+  gen=$("$EV" arm "$state" t1)
+  "$EV" apply "$state" t1 busy --gen "$gen" --source cursor-hook --event user-prompt-submit
+  out=$(fm_busy_classify tmux w1 cursor t1 "$state")
+  [ "$out" = "unknown cursor-unverified" ] || fail "unverified cursor must classify unknown, got '$out'"
+  out=$(fm_busy_classify tmux w1 cursor t1 "$state" 'ctrl+c to stop')
+  [ "$out" = "unknown cursor-unverified" ] || fail "cursor must not classify from footer text, got '$out'"
+  [ -z "$(fm_busy_sources_for_harness cursor)" ] \
+    || fail "cursor must trust no semantic source until one is verified"
+  pass "cursor classifies unknown until a semantic source passes its verification gate"
+}
+
 test_kimi_unverified_gate() {
   local state gen out
   state=$(new_state_dir kimi-gate)
@@ -371,6 +385,7 @@ test_source_mismatch_cross_adapter
 test_converted_adapters_ignore_footer_text
 test_grok_regex_isolated
 test_codex_unverified_gate
+test_cursor_unverified_gate
 test_kimi_unverified_gate
 test_dead_endpoint_overrides
 test_herdr_native_busy_only
