@@ -586,11 +586,21 @@ test_non_bordered_interior_edges_are_pending() {
 # captured cursor-agent pane (harness-adapters skill, Cursor section owns the
 # full incident writeup); FM_FAKE_CY sits below the rule pair in both, exactly
 # reproducing the observed cursor-parked-outside shape.
+#
+# FM_FAKE_ROW is set to the blank row the cursor actually sits on, so the
+# single-row `capture-pane -S <cy> -E <cy>` the bare-row fallback issues sees
+# exactly what real tmux would return. That is what makes this test pin the
+# DANGEROUS verdict specifically: without it the fallback re-reads the whole
+# fixture and the pre-fix detector answers "pending" (a safe over-report),
+# whereas with it the pre-fix detector answers "empty" - the false proof of
+# delivery that fm_tmux_submit_enter_core accepts.
 test_cursor_halfblock_rule_with_cursor_outside_is_unknown() {
-  local dir fb capture out fixture rule_top rule_bottom
+  local dir fb capture blank_row out fixture rule_top rule_bottom
   dir="$TMP_ROOT/cursor-halfblock"; mkdir -p "$dir"
   fb=$(make_fake_tmux "$dir")
   capture="$dir/styled.txt"
+  blank_row="$dir/cursor-row.txt"
+  printf '\n' > "$blank_row"
   rule_top=$(printf '\xe2\x96\x84%.0s' $(seq 1 40))
   rule_bottom=$(printf '\xe2\x96\x80%.0s' $(seq 1 40))
   for fixture in idle pending; do
@@ -605,10 +615,16 @@ test_cursor_halfblock_rule_with_cursor_outside_is_unknown() {
     esac
     printf '\033[38;2;21;21;21m%s\n' "$rule_bottom" >> "$capture"
     printf '  \033[2mAuto\033[0m\n\n\n' >> "$capture"
-    out=$(PATH="$fb:$PATH" FM_FAKE_STYLED="$capture" FM_FAKE_CY=5 \
+    out=$(PATH="$fb:$PATH" FM_FAKE_STYLED="$capture" FM_FAKE_ROW="$blank_row" FM_FAKE_CY=5 \
       fm_tmux_composer_state "fakepane")
     [ "$out" = unknown ] \
       || fail "cursor-agent's borderless composer ($fixture, cursor parked outside it) must classify unknown, got '$out'"
+    # Same pane, but with the fallback re-reading the whole capture instead of
+    # the single cursor row: the verdict must still never be empty.
+    out=$(PATH="$fb:$PATH" FM_FAKE_STYLED="$capture" FM_FAKE_CY=5 \
+      fm_tmux_composer_state "fakepane")
+    [ "$out" = unknown ] \
+      || fail "cursor-agent's borderless composer ($fixture, whole-pane fallback) must classify unknown, got '$out'"
   done
   pass "fm_tmux_composer_state: a half-block rule pair with the cursor outside it is unknown, never empty"
 }

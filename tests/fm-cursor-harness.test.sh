@@ -125,6 +125,50 @@ SH
   pass "fm-harness: the cursor arm is gated on the MainThread comm, so bare node*/python* ancestry order is unchanged"
 }
 
+# The test above shares its fixture's argv between "claude" and "cursor-agent",
+# so the claude arm wins on ordering alone and it passes whether or not a cursor
+# arm exists in the shared node*/python* argv case. This one isolates the arm:
+# the node hop names cursor-agent and NO other harness, with the real claude
+# harness one hop above it. A cursor arm in the shared case makes the node hop
+# answer "cursor" and never reach claude - the exact non-additive regression.
+test_node_ancestry_naming_cursor_agent_does_not_shadow_the_real_harness() {
+  local dir fakebin out
+  dir="$TMP_ROOT/node-names-cursor"
+  fakebin=$(fm_fakebin "$dir")
+  cat > "$fakebin/ps" <<'SH'
+#!/usr/bin/env bash
+set -u
+field=
+pid=
+prev=
+for arg in "$@"; do
+  [ "$prev" = -o ] && field=$arg
+  [ "$prev" = -p ] && pid=$arg
+  prev=$arg
+done
+case "$field:$pid" in
+  # 4242: a bare node hop whose argv mentions cursor-agent and no other harness.
+  comm=:4242) printf 'node\n' ;;
+  args=:4242) printf '%s\n' '/usr/bin/node /opt/tool/index.js --brief port the cursor-agent adapter' ;;
+  ppid=:4242) printf '4343\n' ;;
+  # 4343: the real harness, one hop above.
+  comm=:4343) printf 'claude\n' ;;
+  args=:4343) printf 'claude\n' ;;
+  ppid=:4343) printf '1\n' ;;
+  comm=:*) printf '/bin/bash\n' ;;
+  args=:*) printf 'bash\n' ;;
+  ppid=:*) printf '4242\n' ;;
+esac
+SH
+  chmod +x "$fakebin/ps"
+
+  out=$(env -u CLAUDECODE -u PI_CODING_AGENT -u GROK_AGENT -u CURSOR_AGENT \
+    PATH="$fakebin:$BASE_PATH" "$ROOT/bin/fm-harness.sh")
+  [ "$out" = claude ] \
+    || fail "a node hop merely naming cursor-agent must not shadow the real claude harness above it, got '$out'"
+  pass "fm-harness: adding cursor left the shared node*/python* argv case behavior-identical for existing adapters"
+}
+
 # tmux agent-process liveness for the cursor-agent comm (bin/backends/tmux.sh)
 # is covered by tests/fm-secondmate-liveness.test.sh's
 # test_tmux_agent_state_classifies, which now includes cursor-agent in its
@@ -134,5 +178,6 @@ test_cursor_env_marker_precedence
 test_cursor_detection_uses_mainthread_ancestry_after_markers
 test_mainthread_without_cursor_agent_in_args_stays_unknown
 test_bare_node_ancestry_order_is_unchanged
+test_node_ancestry_naming_cursor_agent_does_not_shadow_the_real_harness
 
 echo "all fm-cursor-harness tests passed"

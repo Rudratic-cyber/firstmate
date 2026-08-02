@@ -72,7 +72,10 @@ detect_own() {
         # carries both a --model id (claude-opus-5-thinking-high,
         # cursor-grok-4.5-medium) and an expanded launch brief that can name
         # any other harness, so the cursor match must win for that comm.
-        # node*/python* keep their original arm order untouched.
+        # node*/python* keep their original arms untouched - deliberately no
+        # cursor arm below: a node/python ancestor merely NAMING cursor-agent
+        # (an expanded brief, a --print argument) is not a cursor harness, and
+        # matching it there would change an already-verified adapter's result.
         if [ "$base" = MainThread ]; then
           case "$args" in
             *cursor-agent*) echo cursor; return ;;
@@ -84,7 +87,6 @@ detect_own() {
           *opencode*) echo opencode; return ;;
           *grok*) echo grok; return ;;
           *" pi "*|*/pi) echo pi; return ;;
-          *cursor-agent*) echo cursor; return ;;
         esac ;;
     esac
     pid=$(ps -o ppid= -p "$pid" 2>/dev/null | tr -d ' ')
