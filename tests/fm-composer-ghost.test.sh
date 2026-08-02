@@ -701,6 +701,61 @@ test_short_halfblock_runs_are_not_composer_rules() {
   pass "fm_tmux_composer_state: incidental short block-glyph runs leave existing harnesses' verdicts unchanged"
 }
 
+# --- Antigravity's bare, non-bordered ">" composer (2026-08-02) -------------
+#
+# agy draws its composer as a single content row (a "> " prompt glyph styled
+# 38;5;69, followed by the typed text) between two full-width plain U+2500
+# rules - no enclosing box family, and no half-block rule either. Unlike
+# cursor-agent, the real terminal cursor (#{cursor_y}) DOES track that exact
+# row, so the shared bare-row fallback reads the right row. The safety of the
+# idle case rests entirely on fm_composer_classify_content's dead-shell-prompt
+# rule: a bare ">" OUTSIDE a bordered box is unknown, never empty, because it
+# cannot be told apart from a dead shell. That rule already returns "empty"
+# for the sibling bare glyphs "❯"/"›", so extending it to ">" would silently
+# make every idle agy pane read proven-empty - fm-send would confirm a
+# delivery that never landed and the away-mode injector would treat a pane
+# holding unsubmitted text as an injection target, the Kimi/Cursor
+# silent-drop class. These two fixtures pin that verdict down. FM_FAKE_ROW
+# carries the styled composer row alone, matching the -S <cy> -E <cy>
+# fallback capture the real detector issues.
+test_antigravity_bare_prompt_glyph_idle_is_unknown() {
+  local dir fb capture row_capture out rule
+  dir="$TMP_ROOT/antigravity-idle"; mkdir -p "$dir"
+  fb=$(make_fake_tmux "$dir")
+  capture="$dir/styled.txt"
+  row_capture="$dir/row.txt"
+  rule=$(printf '\xe2\x94\x80%.0s' $(seq 1 60))
+  printf '%s\n' "$rule" > "$capture"
+  printf '\033[38;5;69m> \033[0m\n' >> "$capture"
+  printf '%s\n' "$rule" >> "$capture"
+  printf '  ? for shortcuts\n' >> "$capture"
+  printf '\033[38;5;69m> \033[0m\n' > "$row_capture"
+  out=$(PATH="$fb:$PATH" LC_ALL=C FM_FAKE_STYLED="$capture" \
+    FM_FAKE_ROW="$row_capture" FM_FAKE_CY=1 fm_tmux_composer_state "fakepane")
+  [ "$out" = unknown ] \
+    || fail "agy's idle bare '>' composer must classify unknown, never empty, got '$out'"
+  pass "fm_tmux_composer_state: agy's bare '>' composer glyph is unknown when idle, never proven empty"
+}
+
+test_antigravity_bare_prompt_glyph_with_text_is_pending() {
+  local dir fb capture row_capture out rule
+  dir="$TMP_ROOT/antigravity-pending"; mkdir -p "$dir"
+  fb=$(make_fake_tmux "$dir")
+  capture="$dir/styled.txt"
+  row_capture="$dir/row.txt"
+  rule=$(printf '\xe2\x94\x80%.0s' $(seq 1 60))
+  printf '%s\n' "$rule" > "$capture"
+  printf '\033[38;5;69m> \033[0mreview the treehouse pool allocator\n' >> "$capture"
+  printf '%s\n' "$rule" >> "$capture"
+  printf '  ? for shortcuts\n' >> "$capture"
+  printf '\033[38;5;69m> \033[0mreview the treehouse pool allocator\n' > "$row_capture"
+  out=$(PATH="$fb:$PATH" LC_ALL=C FM_FAKE_STYLED="$capture" \
+    FM_FAKE_ROW="$row_capture" FM_FAKE_CY=1 fm_tmux_composer_state "fakepane")
+  [ "$out" = pending ] \
+    || fail "real unsubmitted text on agy's bare '>' composer row must classify pending, got '$out'"
+  pass "fm_tmux_composer_state: real unsubmitted text on agy's bare '>' row is pending"
+}
+
 # --- fm-peek.sh stays escape-free (LLM-facing path) -------------------------
 
 test_peek_output_is_escape_free() {
@@ -760,4 +815,6 @@ test_cursor_halfblock_rule_with_cursor_outside_is_unknown
 test_cursor_halfblock_rule_does_not_affect_bordered_harnesses
 test_cursor_halfblock_unpaired_rule_keeps_the_last_complete_pair
 test_short_halfblock_runs_are_not_composer_rules
+test_antigravity_bare_prompt_glyph_idle_is_unknown
+test_antigravity_bare_prompt_glyph_with_text_is_pending
 test_peek_output_is_escape_free
