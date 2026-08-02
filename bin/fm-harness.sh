@@ -61,26 +61,33 @@ detect_own() {
       kimi) echo kimi; return ;;
       pi-signed) echo pi; return ;;
       pi) echo pi; return ;;
-      node*|python*|MainThread)
-        # Bare interpreter: match the harness name in its script path.
+      MainThread)
         # cursor-agent's own comm is literally "MainThread" (verified,
         # cursor-agent 2026.07.23-e383d2b: a Node runtime-thread-naming
-        # quirk, not "cursor-agent" or "node"), so it needs its own case
-        # entry alongside the generic bare-interpreter fallback.
+        # quirk, not "cursor-agent" or "node"), so it needs this dedicated
+        # arm - the same identity bin/fm-session-lock-lib.sh's
+        # fm_harness_is_cursor implements. It matches cursor or nothing and
+        # deliberately does NOT fall through to the bare-interpreter argv
+        # patterns below. A cursor-agent argv carries both a --model id
+        # (claude-opus-5-thinking-high, cursor-grok-4.5-medium) and an
+        # expanded launch brief that can name any other harness, so the
+        # cursor match must win outright for this comm rather than be ordered
+        # among those generic patterns; and before cursor existed this comm
+        # matched no arm at all, so running another harness's argv patterns
+        # against it would change an already-verified adapter's result. A
+        # non-cursor MainThread process simply stays unmatched and the
+        # ancestry walk continues to its parent.
         args=$(ps -o args= -p "$pid" 2>/dev/null)
-        # A MainThread comm is cursor-agent's own signature, and its argv
-        # carries both a --model id (claude-opus-5-thinking-high,
-        # cursor-grok-4.5-medium) and an expanded launch brief that can name
-        # any other harness, so the cursor match must win for that comm.
-        # node*/python* keep their original arms untouched - deliberately no
-        # cursor arm below: a node/python ancestor merely NAMING cursor-agent
-        # (an expanded brief, a --print argument) is not a cursor harness, and
-        # matching it there would change an already-verified adapter's result.
-        if [ "$base" = MainThread ]; then
-          case "$args" in
-            *cursor-agent*) echo cursor; return ;;
-          esac
-        fi
+        case "$args" in
+          *cursor-agent*) echo cursor; return ;;
+        esac ;;
+      node*|python*)
+        # Bare interpreter: match the harness name in its script path.
+        # Deliberately no cursor arm here: a node/python ancestor merely
+        # NAMING cursor-agent (an expanded brief, a --print argument) is not
+        # a cursor harness, and matching it would change an already-verified
+        # adapter's result.
+        args=$(ps -o args= -p "$pid" 2>/dev/null)
         case "$args" in
           *claude*) echo claude; return ;;
           *codex*) echo codex; return ;;

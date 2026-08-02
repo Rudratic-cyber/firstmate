@@ -94,6 +94,87 @@ SH
   pass "fm-harness: a MainThread process without cursor-agent in its args stays unknown, never guessed"
 }
 
+# The test above uses a neutral argv, so it stays green even when the cursor
+# arm shares the node*/python* case label and falls through to that case's
+# generic patterns. This one isolates that fall-through: a MainThread hop whose
+# argv NAMES an existing harness. Before cursor existed the MainThread comm
+# matched no arm at all and this answered "unknown"; a shared label answers
+# "claude" - a non-additive change to an already-verified adapter's detection.
+test_mainthread_naming_another_harness_does_not_leak_into_that_adapter() {
+  local dir fakebin out
+  dir="$TMP_ROOT/mainthread-names-claude"
+  fakebin=$(fm_fakebin "$dir")
+  cat > "$fakebin/ps" <<'SH'
+#!/usr/bin/env bash
+set -u
+field=
+pid=
+prev=
+for arg in "$@"; do
+  [ "$prev" = -o ] && field=$arg
+  [ "$prev" = -p ] && pid=$arg
+  prev=$arg
+done
+case "$field:$pid" in
+  comm=:4242) printf 'MainThread\n' ;;
+  args=:4242) printf '%s\n' '/usr/bin/node /opt/claude/cli.js --print hello' ;;
+  comm=:*) printf '/bin/bash\n' ;;
+  ppid=:4242) printf '1\n' ;;
+  ppid=:*) printf '4242\n' ;;
+  args=:*) printf 'bash\n' ;;
+esac
+SH
+  chmod +x "$fakebin/ps"
+
+  out=$(env -u CLAUDECODE -u PI_CODING_AGENT -u GROK_AGENT -u CURSOR_AGENT \
+    PATH="$fakebin:$BASE_PATH" "$ROOT/bin/fm-harness.sh")
+  [ "$out" = unknown ] \
+    || fail "a non-cursor MainThread process must not fall through to the bare-interpreter argv patterns, got '$out'"
+  pass "fm-harness: the cursor MainThread arm matches cursor or nothing, so it cannot leak a MainThread process into an existing adapter"
+}
+
+# The mirror of the test above, guarding the opposite over-correction: the
+# dedicated MainThread arm must not RETURN unknown when it fails to match, it
+# must fall out of the case and let the ancestry walk continue - which is
+# exactly what the comm did before cursor existed.
+test_non_cursor_mainthread_does_not_halt_the_ancestry_walk() {
+  local dir fakebin out
+  dir="$TMP_ROOT/mainthread-walk-continues"
+  fakebin=$(fm_fakebin "$dir")
+  cat > "$fakebin/ps" <<'SH'
+#!/usr/bin/env bash
+set -u
+field=
+pid=
+prev=
+for arg in "$@"; do
+  [ "$prev" = -o ] && field=$arg
+  [ "$prev" = -p ] && pid=$arg
+  prev=$arg
+done
+case "$field:$pid" in
+  # 4242: a MainThread hop that is not cursor-agent.
+  comm=:4242) printf 'MainThread\n' ;;
+  args=:4242) printf '/usr/bin/node /opt/some-other-tool/index.js\n' ;;
+  ppid=:4242) printf '4343\n' ;;
+  # 4343: the real harness, one hop above.
+  comm=:4343) printf 'claude\n' ;;
+  args=:4343) printf 'claude\n' ;;
+  ppid=:4343) printf '1\n' ;;
+  comm=:*) printf '/bin/bash\n' ;;
+  args=:*) printf 'bash\n' ;;
+  ppid=:*) printf '4242\n' ;;
+esac
+SH
+  chmod +x "$fakebin/ps"
+
+  out=$(env -u CLAUDECODE -u PI_CODING_AGENT -u GROK_AGENT -u CURSOR_AGENT \
+    PATH="$fakebin:$BASE_PATH" "$ROOT/bin/fm-harness.sh")
+  [ "$out" = claude ] \
+    || fail "an unmatched MainThread hop must not halt the walk before the real claude harness above it, got '$out'"
+  pass "fm-harness: an unmatched MainThread hop leaves the ancestry walk running, exactly as before cursor existed"
+}
+
 test_bare_node_ancestry_order_is_unchanged() {
   local dir fakebin out
   dir="$TMP_ROOT/bare-node"
@@ -270,6 +351,8 @@ SH
 test_cursor_env_marker_precedence
 test_cursor_detection_uses_mainthread_ancestry_after_markers
 test_mainthread_without_cursor_agent_in_args_stays_unknown
+test_mainthread_naming_another_harness_does_not_leak_into_that_adapter
+test_non_cursor_mainthread_does_not_halt_the_ancestry_walk
 test_bare_node_ancestry_order_is_unchanged
 test_node_ancestry_naming_cursor_agent_does_not_shadow_the_real_harness
 test_session_lock_identity_resolves_cursor_agent
