@@ -345,6 +345,36 @@ test_actionable_close_rewakes_with_reason() {
   pass "auto-arm: actionable close translates to exactly one exit-2 rewake with reason"
 }
 
+test_actionable_close_with_live_successor_rewakes_once() {
+  local dir out out2 status status2 pid identity
+  dir=$(make_primary_dir "$TMP_ROOT/actionable-live-successor")
+  : > "$dir/state/task.meta"
+  write_arm_fixture "$dir" actionable
+  sleep 60 &
+  pid=$!
+  identity=$(watcher_identity "$dir" "$pid") || fail "could not identify live successor for actionable close"
+  record_watcher_lock "$dir" "$pid" "$identity"
+  touch "$dir/state/.last-watcher-beat"
+
+  out=$(run_autoarm "$dir" 2>/dev/null); status=$?
+  write_arm_fixture "$dir" benign-live
+  out2=$(run_autoarm "$dir" 2>/dev/null); status2=$?
+
+  expect_code 2 "$status" "an actionable close must rewake when a live successor already exists"
+  expect_code 0 "$status2" "a repeated non-actionable close with the live successor must stay quiet"
+  [ "$(printf '%s\n' "$out" | grep -c '^firstmate watcher wake')" -eq 1 ] \
+    || fail "actionable close with a live successor did not emit exactly one wake banner: $out"
+  [ "$(printf '%s\n' "$out" | grep -c '^stale: fixture-win actionable')" -eq 1 ] \
+    || fail "actionable close with a live successor did not surface its reason exactly once: $out"
+  [ -z "$out2" ] || fail "repeated hook duplicated the delivered actionable result: $out2"
+  kill -0 "$pid" 2>/dev/null || fail "actionable delivery stopped or replaced the live successor"
+  [ "$(epoch_outcome "$dir")" = clean ] || fail "the later benign close must record outcome=clean"
+
+  kill "$pid" 2>/dev/null || true
+  wait "$pid" 2>/dev/null || true
+  pass "auto-arm: actionable close survives a healthy successor without duplicate delivery"
+}
+
 test_failed_close_rewakes_with_failure_banner() {
   local dir out status
   dir=$(make_primary_dir "$TMP_ROOT/failed")
@@ -554,6 +584,7 @@ test_stale_lock_recovery_preserves_afk_and_need_gates
 test_resolves_outermost_claude_pid_in_nested_bgspare_chain
 test_inert_when_fleet_idle
 test_actionable_close_rewakes_with_reason
+test_actionable_close_with_live_successor_rewakes_once
 test_failed_close_rewakes_with_failure_banner
 test_failed_cycles_notify_once_and_keep_retrying
 test_unverified_clean_close_exhausts_retries

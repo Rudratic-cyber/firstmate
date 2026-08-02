@@ -180,6 +180,18 @@ Observed output:
 FM_TEST_SUMMARY total=8 failed=0 skipped_gate=0 duration_ms=617507
 ```
 
+The actionable-close ordering correction was reverified on 2026-08-02 against an identity-matched live successor.
+
+```sh
+tests/fm-claude-stop-autoarm.test.sh >/dev/null && echo "fm-claude-stop-autoarm: ok"
+```
+
+Observed output:
+
+```text
+fm-claude-stop-autoarm: ok
+```
+
 ## Watcher continuity
 
 The cross-harness evidence combines the 2026-07-17 live pass with Claude's replacement Stop-owned path revalidated on 2026-07-24, all against isolated project and home state.

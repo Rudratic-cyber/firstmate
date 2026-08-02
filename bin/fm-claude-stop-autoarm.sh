@@ -184,6 +184,7 @@ while [ "$attempt" -lt "$AUTOARM_ATTEMPTS" ]; do
   if [ -n "$OUT" ]; then
     grep -Eq '^(signal:|stale:|check:|heartbeat($|:))' "$OUT" 2>/dev/null && ACTIONABLE=1
   fi
+  [ "$ACTIONABLE" -eq 1 ] && break
 
   # A non-actionable close is benign when another verified watcher already owns
   # this home and is still beating within the shared grace window.
@@ -191,7 +192,6 @@ while [ "$attempt" -lt "$AUTOARM_ATTEMPTS" ]; do
     HEALTHY=1
     break
   fi
-  [ "$ACTIONABLE" -eq 1 ] && break
   [ "$attempt" -lt "$AUTOARM_ATTEMPTS" ] || break
   [ -z "$OUT" ] || rm -f "$OUT" 2>/dev/null || true
   OUT=
