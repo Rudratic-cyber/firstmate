@@ -433,7 +433,7 @@ FIRSTMATE_HOME=
 
 if [ "$KIND" = secondmate ]; then
   case "${POS[1]:-}" in
-    ''|claude|codex|opencode|pi|pi-signed|grok|kimi)
+    ''|claude|codex|opencode|pi|pi-signed|grok|kimi|cursor)
       ARG3=${POS[1]:-}
       ;;
     *' '*)

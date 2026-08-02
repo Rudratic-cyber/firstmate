@@ -600,7 +600,23 @@ test_spawn_cursor_secondmate_refused() {
   assert_contains "$(cat "$err")" "cursor is a crewmate/scout runtime only" \
     "cursor secondmate (explicit --harness): error explains the refusal"
   [ -e "$w/home/state/sm.meta" ] && fail "cursor secondmate (explicit --harness): a meta was written despite the refusal"
-  pass "B6b spawn: cursor is refused as a secondmate harness, both via config and an explicit --harness override"
+
+  # The home-omitted positional form (`fm-spawn.sh <id> cursor --secondmate`)
+  # must reach the same refusal, not be mistaken for a firstmate home named
+  # "cursor" that then silently launches the config-resolved harness.
+  rm -f "$err"
+  rc=0
+  PATH="$fakebin:$BASE_PATH" TMUX='' CLAUDECODE=1 \
+    FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$w/home" \
+    FM_STATE_OVERRIDE="$w/home/state" FM_DATA_OVERRIDE="$w/home/data" \
+    FM_PROJECTS_OVERRIDE="$w/home/projects" FM_CONFIG_OVERRIDE="$w/home/config" \
+    FM_SPAWN_NO_GUARD=1 \
+    "$ROOT/bin/fm-spawn.sh" sm cursor --secondmate >/dev/null 2>"$err" || rc=$?
+  [ "$rc" -ne 0 ] || fail "cursor secondmate (positional): spawn should have been refused"
+  assert_contains "$(cat "$err")" "cursor is a crewmate/scout runtime only" \
+    "cursor secondmate (positional): error explains the refusal"
+  [ -e "$w/home/state/sm.meta" ] && fail "cursor secondmate (positional): a meta was written despite the refusal"
+  pass "B6b spawn: cursor is refused as a secondmate harness through config, an explicit --harness override, and the bare positional name"
 }
 
 # ===========================================================================
