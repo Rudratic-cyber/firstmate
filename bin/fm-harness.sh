@@ -65,8 +65,9 @@ detect_own() {
         # cursor-agent's own comm is literally "MainThread" (verified,
         # cursor-agent 2026.07.23-e383d2b: a Node runtime-thread-naming
         # quirk, not "cursor-agent" or "node"), so it needs this dedicated
-        # arm - the same identity bin/fm-session-lock-lib.sh's
-        # fm_harness_is_cursor implements. It matches cursor or nothing and
+        # arm. bin/fm-session-lock-lib.sh deliberately has NO counterpart:
+        # cursor is a crewmate/scout runtime only and must never resolve as a
+        # session-lock holder. It matches cursor or nothing and
         # deliberately does NOT fall through to the bare-interpreter argv
         # patterns below. A cursor-agent argv carries both a --model id
         # (claude-opus-5-thinking-high, cursor-grok-4.5-medium) and an

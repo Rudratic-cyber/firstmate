@@ -30,7 +30,7 @@ zsh
 A persistent parent shell waiting for a child remained reported as the parent process, while a shell that directly execed a simple command changed identity with the process itself.
 Claude, Codex, OpenCode, and Grok were observed under their own process names.
 Kimi Code CLI 0.29.1 was observed under `kimi` on 2026-07-25.
-cursor-agent 2026.07.23-e383d2b was observed under `cursor-agent` on 2026-08-02, while its own `ps -o comm=` reports the literal `MainThread`, so tmux liveness keys on the foreground command and the process-ancestry paths key on that separate identity.
+cursor-agent 2026.07.23-e383d2b was observed under `cursor-agent` on 2026-08-02, while its own `ps -o comm=` reports the literal `MainThread`, so tmux liveness keys on the foreground command while `bin/fm-harness.sh`'s ancestry fallback keys on that separate identity.
 Pi and pi-signed 0.82.0 were reverified on 2026-07-27 through real isolated `fm-spawn.sh` launches.
 
 Installed-wrapper checks:

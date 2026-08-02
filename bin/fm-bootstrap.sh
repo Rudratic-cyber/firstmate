@@ -449,6 +449,9 @@ secondmate_liveness_sweep() {
     target=$(fm_backend_target_of_meta "$meta")
     [ -n "$target" ] || target="$window"
     agent_state=$(fm_backend_agent_state "$backend" "$target" 2>/dev/null) || agent_state=unreadable
+    # Harnesses a secondmate can actually run on, not every verified adapter:
+    # cursor is verified for crewmates/scouts but refused as a secondmate
+    # harness (bin/fm-spawn.sh), so it is deliberately absent here.
     case "$harness" in
       claude|codex|opencode|pi|pi-signed|grok|kimi) ;;
       *)

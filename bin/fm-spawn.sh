@@ -72,11 +72,10 @@
 #   secondmate-vs-crewmate split is DURABLE across every respawn (recovery,
 #   /updatefirstmate, restart). A bare adapter name (claude|codex|opencode|pi|pi-signed|grok|kimi|cursor)
 #   overrides it for this spawn (either kind, except cursor, which fm-spawn refuses
-#   for --secondmate: it is a crewmate/scout runtime only, with no primary-session
-#   integrations - turn-end guard, watcher supervision, session-start nudge, or
-#   session-lock identity - for a secondmate's own primary session to use). A
-#   non-flag string containing whitespace is treated as a RAW launch command - the
-#   escape hatch for verifying new adapters. pi-signed launches that exact
+#   for --secondmate: it is a crewmate/scout runtime only - see the refusal below
+#   for the reason, and the harness-adapters skill's cursor section for the
+#   evidence). A non-flag string containing whitespace is treated as a RAW launch
+#   command - the escape hatch for verifying new adapters. pi-signed launches that exact
 #   executable name from PATH and refuses before endpoint creation when it is
 #   unavailable; it never falls back to pi.
 #   config/secondmate-harness may also carry an optional model and effort as extra
