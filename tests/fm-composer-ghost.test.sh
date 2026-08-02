@@ -725,10 +725,12 @@ test_antigravity_bare_prompt_glyph_idle_is_unknown() {
   capture="$dir/styled.txt"
   row_capture="$dir/row.txt"
   rule=$(printf '\xe2\x94\x80%.0s' $(seq 1 60))
-  printf '%s\n' "$rule" > "$capture"
-  printf '\033[38;5;69m> \033[0m\n' >> "$capture"
-  printf '%s\n' "$rule" >> "$capture"
-  printf '  ? for shortcuts\n' >> "$capture"
+  {
+    printf '%s\n' "$rule"
+    printf '\033[38;5;69m> \033[0m\n'
+    printf '%s\n' "$rule"
+    printf '  ? for shortcuts\n'
+  } > "$capture"
   printf '\033[38;5;69m> \033[0m\n' > "$row_capture"
   out=$(PATH="$fb:$PATH" LC_ALL=C FM_FAKE_STYLED="$capture" \
     FM_FAKE_ROW="$row_capture" FM_FAKE_CY=1 fm_tmux_composer_state "fakepane")
@@ -744,10 +746,12 @@ test_antigravity_bare_prompt_glyph_with_text_is_pending() {
   capture="$dir/styled.txt"
   row_capture="$dir/row.txt"
   rule=$(printf '\xe2\x94\x80%.0s' $(seq 1 60))
-  printf '%s\n' "$rule" > "$capture"
-  printf '\033[38;5;69m> \033[0mreview the treehouse pool allocator\n' >> "$capture"
-  printf '%s\n' "$rule" >> "$capture"
-  printf '  ? for shortcuts\n' >> "$capture"
+  {
+    printf '%s\n' "$rule"
+    printf '\033[38;5;69m> \033[0mreview the treehouse pool allocator\n'
+    printf '%s\n' "$rule"
+    printf '  ? for shortcuts\n'
+  } > "$capture"
   printf '\033[38;5;69m> \033[0mreview the treehouse pool allocator\n' > "$row_capture"
   out=$(PATH="$fb:$PATH" LC_ALL=C FM_FAKE_STYLED="$capture" \
     FM_FAKE_ROW="$row_capture" FM_FAKE_CY=1 fm_tmux_composer_state "fakepane")
