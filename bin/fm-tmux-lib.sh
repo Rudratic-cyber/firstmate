@@ -199,7 +199,7 @@ fm_tmux_find_composer_box() {  # <cursor-y> <plain-visible-pane> -> "<top> <bott
   local content_inner content_spaces bottom_inner bottom_spaces
   local current_indent=
   local row=0 top=-1 valid=0 content_rows=0 unsafe=0 cursor_structural=0
-  local hb_open=-1 hb_top=-1 hb_bottom=-1 hb_probe
+  local hb_open=-1 hb_top=-1 hb_bottom=-1 hb_probe hb_clipped_bottom=-1
   while IFS= read -r line; do
     indent=${line%%[![:space:]]*}
     left_stripped="${line#"${line%%[![:space:]]*}"}"
@@ -208,14 +208,18 @@ fm_tmux_find_composer_box() {  # <cursor-y> <plain-visible-pane> -> "<top> <bott
     # Cursor CLI's borderless composer edge) is not a recognized box family
     # below, so it never resolves top/bottom/content here. It is still real
     # composer structure the shared box scan cannot classify - tracked
-    # separately (last COMPLETE pair wins: hb_top/hb_bottom only ever move
-    # together, so a later unpaired ▄ opens a candidate without discarding an
-    # already-proven pair) so the caller can refuse the bare-row fallback when
-    # the cursor sits outside it (see unsafe check after the loop). A row must
-    # also be at least FM_TMUX_HALFBLOCK_RULE_MIN wide to count as a rule, so
-    # an incidental one-glyph or few-glyph block run is not mistaken for a
-    # composer edge. No existing verified harness draws a solid full-width
-    # ▄/▀ rule, so this adds no false positives for
+    # separately so the caller can refuse the bare-row fallback when the
+    # cursor sits outside it (see unsafe checks after the loop). An opening
+    # ▄ row is only a CANDIDATE (hb_open); it is promoted to a completed pair
+    # (hb_top/hb_bottom, last complete pair wins) only when its closing ▀ row
+    # arrives, so a later incomplete rule can never discard a real pair. A ▀
+    # row with no candidate is a pair whose top is clipped above the capture
+    # (hb_clipped_bottom); both incomplete shapes are consulted after the loop
+    # only when no complete pair was found. A row must also be at least
+    # FM_TMUX_HALFBLOCK_RULE_MIN wide to count as a rule, so an incidental
+    # one-glyph or few-glyph block run is not mistaken for a composer edge.
+    # No existing verified harness draws a solid full-width ▄/▀ rule, so this
+    # adds no false positives for
     # claude/codex/opencode/pi/grok/kimi.
     case "$trimmed" in
       '▄'*)
@@ -226,11 +230,14 @@ fm_tmux_find_composer_box() {  # <cursor-y> <plain-visible-pane> -> "<top> <bott
         ;;
       '▀'*)
         hb_probe=${trimmed//▀/}
-        if [ -z "$hb_probe" ] && [ "${#trimmed}" -ge "$FM_TMUX_HALFBLOCK_RULE_MIN" ] \
-           && [ "$hb_open" -ge 0 ]; then
-          hb_top=$hb_open
-          hb_bottom=$row
-          hb_open=-1
+        if [ -z "$hb_probe" ] && [ "${#trimmed}" -ge "$FM_TMUX_HALFBLOCK_RULE_MIN" ]; then
+          if [ "$hb_open" -ge 0 ]; then
+            hb_top=$hb_open
+            hb_bottom=$row
+            hb_open=-1
+          else
+            hb_clipped_bottom=$row
+          fi
         fi
         ;;
     esac
@@ -345,6 +352,18 @@ EOF
   if [ "$hb_top" -ge 0 ] && [ "$hb_bottom" -ge "$hb_top" ] \
      && { [ "$cy" -le "$hb_top" ] || [ "$cy" -gt "$hb_bottom" ]; }; then
     unsafe=1
+  fi
+  # No complete pair was captured, but a half rule was: the composer's other
+  # edge is clipped off the captured region, so the rule row alone bounds the
+  # one side we can see. Refuse the bare-row fallback on the side that is
+  # provably outside the composer, and stay silent about the clipped side.
+  if [ "$hb_bottom" -lt 0 ]; then
+    if [ "$hb_clipped_bottom" -ge 0 ] && [ "$cy" -gt "$hb_clipped_bottom" ]; then
+      unsafe=1
+    fi
+    if [ "$hb_open" -ge 0 ] && [ "$cy" -le "$hb_open" ]; then
+      unsafe=1
+    fi
   fi
   if [ "$unsafe" = 1 ] || [ "$cursor_structural" = 1 ]; then
     return 2

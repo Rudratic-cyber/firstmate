@@ -629,6 +629,51 @@ test_cursor_halfblock_rule_with_cursor_outside_is_unknown() {
   pass "fm_tmux_composer_state: a half-block rule pair with the cursor outside it is unknown, never empty"
 }
 
+test_cursor_halfblock_incomplete_rule_cannot_disarm_the_guard() {
+  local dir fb capture out rule_top rule_bottom
+  dir="$TMP_ROOT/cursor-halfblock-incomplete"; mkdir -p "$dir"
+  fb=$(make_fake_tmux "$dir")
+  capture="$dir/styled.txt"
+  rule_top=$(printf '\xe2\x96\x84%.0s' $(seq 1 40))
+  rule_bottom=$(printf '\xe2\x96\x80%.0s' $(seq 1 40))
+  # A complete rule pair followed by a TRAILING lone opening rule (the pane
+  # redrew and the capture clipped the new closing rule). The trailing rule
+  # must not discard the completed pair, or the cursor parked below it falls
+  # through to the bare-row read the guard exists to prevent.
+  {
+    printf '%s\n' "$rule_top"
+    printf '  \xe2\x86\x92 unsent pending text example\n'
+    printf '%s\n' "$rule_bottom"
+    printf '\n'
+    printf '%s\n' "$rule_top"
+  } > "$capture"
+  out=$(PATH="$fb:$PATH" FM_FAKE_STYLED="$capture" FM_FAKE_CY=3 \
+    fm_tmux_composer_state "fakepane")
+  [ "$out" = unknown ] \
+    || fail "a trailing incomplete half-block rule must not disarm the completed-pair guard, got '$out'"
+  # Only the CLOSING rule is inside the captured region (the composer's top
+  # rule scrolled off): the cursor below it is still provably outside.
+  {
+    printf '%s\n' "$rule_bottom"
+    printf '\n'
+  } > "$capture"
+  out=$(PATH="$fb:$PATH" FM_FAKE_STYLED="$capture" FM_FAKE_CY=1 \
+    fm_tmux_composer_state "fakepane")
+  [ "$out" = unknown ] \
+    || fail "a clipped-top half-block rule must still refuse the bare-row fallback below it, got '$out'"
+  # Only the OPENING rule is inside the captured region: the cursor above it
+  # is outside the composer the same way.
+  {
+    printf '\n'
+    printf '%s\n' "$rule_top"
+  } > "$capture"
+  out=$(PATH="$fb:$PATH" FM_FAKE_STYLED="$capture" FM_FAKE_CY=0 \
+    fm_tmux_composer_state "fakepane")
+  [ "$out" = unknown ] \
+    || fail "a clipped-bottom half-block rule must still refuse the bare-row fallback above it, got '$out'"
+  pass "fm_tmux_composer_state: incomplete half-block rules never reopen the false-empty fallback"
+}
+
 test_cursor_halfblock_rule_does_not_affect_bordered_harnesses() {
   local dir fb capture out
   dir="$TMP_ROOT/cursor-halfblock-no-crossover"; mkdir -p "$dir"
@@ -816,6 +861,7 @@ test_legitimate_empty_routes_remain_empty
 test_non_bordered_composer_uses_compatibility_fallback
 test_non_bordered_interior_edges_are_pending
 test_cursor_halfblock_rule_with_cursor_outside_is_unknown
+test_cursor_halfblock_incomplete_rule_cannot_disarm_the_guard
 test_cursor_halfblock_rule_does_not_affect_bordered_harnesses
 test_cursor_halfblock_unpaired_rule_keeps_the_last_complete_pair
 test_short_halfblock_runs_are_not_composer_rules
