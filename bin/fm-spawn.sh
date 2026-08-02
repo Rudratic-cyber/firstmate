@@ -535,8 +535,9 @@ launch_template() {
     # on PATH) with its own mature CLI surface (print/interactive modes,
     # --model, --dangerously-skip-permissions, Stop/PostToolUse hooks per its
     # own changelog) that shares Antigravity's backend and authenticates
-    # successfully. A positional prompt via `-i` starts the supervised
-    # interactive session and runs immediately once autonomy is granted
+    # successfully. An initial prompt passed to the `-i`/--prompt-interactive
+    # valued flag starts the supervised interactive session and runs
+    # immediately once autonomy is granted
     # (verified: same shape as claude/grok, not Kimi's launch-then-send;
     # a multi-line brief was also verified to run correctly as one message).
     # --dangerously-skip-permissions is required for unattended tool use:
@@ -549,12 +550,20 @@ launch_template() {
     # silently break every crewmate's file edits. No trust dialog was
     # observed in any of 8+ never-before-seen directories (including the
     # treehouse pool path) with --dangerously-skip-permissions set, unlike
-    # cursor-agent's separate --trust requirement above. __MODELFLAG__ MUST
-    # precede `-i`: verified live that a --model flag placed AFTER the `-i
-    # "<prompt>"` positional argument is silently ignored (the session runs
-    # on agy's last-used default model instead), while the identical flag
-    # placed before `-i` is honored; --effort is never emitted for antigravity
-    # (see effort_flag_for_harness) for the same reason cursor omits it.
+    # cursor-agent's separate --trust requirement above. __MODELFLAG__ is
+    # emitted before `-i`, which is the placement verified to win - but NOT
+    # because `-i` is a positional argument: it is a valued flag
+    # (--prompt-interactive), and --model placed after `-i "<prompt>"` was
+    # verified live to be honored too, so flag order relative to `-i` is not
+    # the mechanism. What was verified to silently drop --model is a bare
+    # positional prompt (`agy ... '<prompt>' --model <model>`, no `-i`). The
+    # fallback target was NOT root-caused: every observed drop or substitution
+    # landed on Gemini 3.6 Flash (High) regardless of what the preceding
+    # launch in the same HOME had set, so it is an unexplained default, not
+    # the last-used model. The shipped placement is correct under every shape
+    # observed and does not change;
+    # --effort is never emitted for antigravity (see effort_flag_for_harness)
+    # for the same reason cursor omits it.
     # agy has no turn-end hook or busy-state wiring (see the comment above
     # and bin/fm-busy-lib.sh), so the template is identical for
     # ship/scout/secondmate.
