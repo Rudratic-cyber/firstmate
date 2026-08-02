@@ -128,6 +128,10 @@ A bordered-empty or ghost-only composer is recognized as empty where that backen
 `fm-send.sh` uses the same primitive and exits non-zero
 when a steer's Enter is positively swallowed, so firstmate learns an instruction
 did not land instead of leaving it unsubmitted.
+That non-zero-means-unsubmitted reading does not hold for every adapter: on the
+tmux backend, cursor and antigravity panes do not report a proven-empty
+composer, so an `fm-send` to them exits non-zero even after the text landed.
+`harness-adapters` owns that limit and what to do instead of resending.
 
 **Busy-queued Enter exception (tmux backend, opencode 1.18.4).** While opencode
 is mid-turn, Enter is accepted and queued for after the current turn but the
