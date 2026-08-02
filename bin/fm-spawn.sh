@@ -70,7 +70,7 @@
 #   profile consultation. A --secondmate spawn is exempt and resolves the SECONDMATE
 #   harness (config/secondmate-harness -> config/crew-harness -> own), so the
 #   secondmate-vs-crewmate split is DURABLE across every respawn (recovery,
-#   /updatefirstmate, restart). A bare adapter name (claude|codex|opencode|pi|pi-signed|grok|kimi)
+#   /updatefirstmate, restart). A bare adapter name (claude|codex|opencode|pi|pi-signed|grok|kimi|cursor)
 #   overrides it for this spawn (either kind). A non-flag string containing
 #   whitespace is treated as a RAW launch command - the escape hatch for verifying
 #   new adapters. pi-signed launches that exact executable name from PATH and
@@ -118,6 +118,10 @@
 # a firstmate-owned global hook and registry, and a gitignored per-task pointer.
 # grok uses a firstmate-owned global hook under ${GROK_HOME:-$HOME/.grok}/hooks
 # plus a gitignored .fm-grok-turnend worktree pointer and a state token.
+# cursor (cursor-agent) exposes no lifecycle-hook or event-stream mechanism
+# (bin/fm-busy-lib.sh's fm_busy_cursor_semantic_source records the negative
+# probe), so no turn-end hook is installed for it; it classifies unknown
+# cursor-unverified like Codex until a real semantic source is found.
 # On success prints: spawned <id> harness=<name> kind=<ship|scout|secondmate> mode=<mode> yolo=<on|off> window=<backend-target> worktree=<path>
 # mode/yolo are resolved per-project from data/projects.md for ship/scout tasks;
 # secondmate spawns record mode=secondmate, yolo=off, home=, and projects=.
@@ -425,7 +429,7 @@ FIRSTMATE_HOME=
 
 if [ "$KIND" = secondmate ]; then
   case "${POS[1]:-}" in
-    ''|claude|codex|opencode|pi|pi-signed|grok|kimi)
+    ''|claude|codex|opencode|pi|pi-signed|grok|kimi|cursor)
       ARG3=${POS[1]:-}
       ;;
     *' '*)
@@ -491,6 +495,25 @@ launch_template() {
     # Its turn-end signal is a globally configured Stop hook plus a guarded
     # per-task worktree token, so no launch placeholder belongs here.
     kimi) printf '%s' '__KIMIBIN__ __MODELFLAG__--auto' ;;
+    # cursor (cursor-agent): a positional prompt starts the supervised
+    # interactive session and runs immediately once trust and autonomy are
+    # granted (verified: same shape as claude/grok, not Kimi's
+    # launch-then-send). --force allows every tool/command execution
+    # unattended (verified: cursor-agent 2026.07.23-e383d2b ran shell
+    # commands, including `no-mistakes init`, with no approval prompt).
+    # --trust skips the interactive "Workspace Trust Required" dialog that
+    # otherwise appears on every first launch in a directory (verified: the
+    # dialog appeared with --force alone and was fully suppressed once
+    # --trust was added, even in a never-before-seen directory). Firstmate
+    # always launches into a worktree it just allocated, so auto-trusting it
+    # at launch is the direct equivalent of claude's
+    # --dangerously-skip-permissions rather than a broadened grant. Never
+    # pass cursor-agent's own -w/--worktree flag here: it creates a second,
+    # untracked worktree under ~/.cursor/worktrees/ instead of using the one
+    # firstmate allocated. cursor-agent has no turn-end hook or busy-state
+    # wiring (see the comment above and bin/fm-busy-lib.sh), so the template
+    # is identical for ship/scout/secondmate.
+    cursor) printf '%s' 'cursor-agent --force --trust __MODELFLAG__"$(__OPINPUT__ encode launch-brief < __BRIEF__)"' ;;
     *) return 1 ;;
   esac
 }
@@ -603,7 +626,7 @@ model_flag_for_harness() {
   local harness=$1 model=$2
   [ -n "$model" ] && [ "$model" != default ] || return 0
   case "$harness" in
-    claude|codex|opencode|pi|pi-signed|grok|kimi)
+    claude|codex|opencode|pi|pi-signed|grok|kimi|cursor)
       printf -- '--model %s ' "$(shell_quote "$model")"
       ;;
   esac
@@ -647,6 +670,14 @@ effort_flag_for_harness() {
     # to a different, non-interactive launch mode, so fm-spawn does not pass it.
     # kimi likewise has no reasoning-effort flag; the requested axis stays in
     # task metadata but never reaches the launch command.
+    # cursor has no separate reasoning-effort flag at all: cursor-agent
+    # 2026.07.23-e383d2b encodes effort IN the model id itself (e.g.
+    # claude-opus-5-thinking-high), and `--model 'base[effort=high]'`
+    # bracket-parameter overrides documented in --help were verified
+    # rejected outright by the installed CLI ("Cannot use this model: ...").
+    # Firstmate resolves the intended effort into the chosen --model value
+    # at intake instead; a separately requested --effort stays recorded in
+    # task metadata but is never honored by any flag here.
   esac
 }
 
@@ -1380,6 +1411,12 @@ if [ "$KIND" != secondmate ]; then
         exit 1
       fi
       ;;
+    cursor*)
+      if fm_busy_cursor_semantic_source; then
+        echo "error: cursor semantic busy-state wiring is not implemented; extend the probe only together with verified wiring" >&2
+        exit 1
+      fi
+      ;;
   esac
   case "$HARNESS" in
     claude*|opencode*|pi|pi-signed)
@@ -1581,6 +1618,14 @@ EOF
       printf '%s\n' "${auth_file##*/}" > "$STATE/$ID.kimi-turnend-token"
       printf 'token=%s\n' "${auth_file##*/}" > "$WT/.fm-kimi-turnend"
       exclude_path '.fm-kimi-turnend'
+      ;;
+    cursor*)
+      # Semantic busy-state source negotiation (bin/fm-busy-lib.sh's
+      # fm_busy_cursor_semantic_source owns the probe and the evidence):
+      # cursor-agent exposes no lifecycle-hook or event-stream mechanism a
+      # pane worker can observe, so Cursor classifies unknown
+      # cursor-unverified rather than falling back to idle, and no busy or
+      # turn-end wiring is installed.
       ;;
   esac
 fi

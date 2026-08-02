@@ -570,6 +570,68 @@ test_non_bordered_interior_edges_are_pending() {
   pass "fm_tmux_composer_state: interior edge glyphs retain non-bordered fallback"
 }
 
+# --- Cursor's borderless half-block composer (2026-08-02) -------------------
+#
+# cursor-agent draws its composer edge as a full-width solid rule (U+2584
+# upper-half-block above, U+2580 lower-half-block below), not any recognized
+# box family, and parks the REAL terminal cursor (#{cursor_y}) off the
+# visible composer entirely - confirmed live: the same blank row was reported
+# whether the composer held real unsubmitted text or nothing at all. Before
+# the fm_tmux_find_composer_box fix, that meant fm_tmux_composer_state fell
+# through to the bare-row fallback at the (unrelated, blank) cursor row and
+# proved a live pane's composer "empty" even while real text sat unsubmitted
+# in it - the same class of failure as the Kimi silent-drop incident above,
+# but silent in the DANGEROUS direction (a false "delivered", not a false
+# "swallowed"). These fixtures are trimmed, byte-faithful excerpts of a real
+# captured cursor-agent pane (harness-adapters skill, Cursor section owns the
+# full incident writeup); FM_FAKE_CY sits below the rule pair in both, exactly
+# reproducing the observed cursor-parked-outside shape.
+test_cursor_halfblock_rule_with_cursor_outside_is_unknown() {
+  local dir fb capture out fixture rule_top rule_bottom
+  dir="$TMP_ROOT/cursor-halfblock"; mkdir -p "$dir"
+  fb=$(make_fake_tmux "$dir")
+  capture="$dir/styled.txt"
+  rule_top=$(printf '\xe2\x96\x84%.0s' $(seq 1 40))
+  rule_bottom=$(printf '\xe2\x96\x80%.0s' $(seq 1 40))
+  for fixture in idle pending; do
+    printf '\033[38;2;21;21;21m%s\n' "$rule_top" > "$capture"
+    case "$fixture" in
+      idle)
+        printf '\033[48;2;21;21;21m \033[2m\xe2\x86\x92 \033[0;7m\033[48;2;21;21;21mP\033[0;2m\033[48;2;21;21;21mlan, search, build anything\033[0m\033[48;2;21;21;21m    \033[49m\n' >> "$capture"
+        ;;
+      pending)
+        printf '\033[48;2;21;21;21m \xe2\x86\x92 unsent pending text example\033[7m \033[0m\033[48;2;21;21;21m    \033[49m\n' >> "$capture"
+        ;;
+    esac
+    printf '\033[38;2;21;21;21m%s\n' "$rule_bottom" >> "$capture"
+    printf '  \033[2mAuto\033[0m\n\n\n' >> "$capture"
+    out=$(PATH="$fb:$PATH" FM_FAKE_STYLED="$capture" FM_FAKE_CY=5 \
+      fm_tmux_composer_state "fakepane")
+    [ "$out" = unknown ] \
+      || fail "cursor-agent's borderless composer ($fixture, cursor parked outside it) must classify unknown, got '$out'"
+  done
+  pass "fm_tmux_composer_state: a half-block rule pair with the cursor outside it is unknown, never empty"
+}
+
+test_cursor_halfblock_rule_does_not_affect_bordered_harnesses() {
+  local dir fb capture out
+  dir="$TMP_ROOT/cursor-halfblock-no-crossover"; mkdir -p "$dir"
+  fb=$(make_fake_tmux "$dir")
+  capture="$dir/styled.txt"
+  # A claude-style bordered box, with an UNRELATED half-block rule elsewhere in
+  # the same pane (e.g. leftover scrollback) and the cursor correctly inside
+  # the real box: the new half-block tracking must never suppress an otherwise
+  # legitimate proven-empty box it has nothing to do with.
+  printf '%s\n' "$(printf '\xe2\x96\x84%.0s' $(seq 1 40))" > "$capture"
+  printf '%s\n' "$(printf '\xe2\x96\x80%.0s' $(seq 1 40))" >> "$capture"
+  printf '╭────╮\n│    │\n╰────╯\n' >> "$capture"
+  out=$(PATH="$fb:$PATH" FM_FAKE_STYLED="$capture" FM_FAKE_CY=3 \
+    fm_tmux_composer_state "fakepane")
+  [ "$out" = empty ] \
+    || fail "an unrelated half-block rule earlier in the pane must not suppress a real bordered box's empty verdict, got '$out'"
+  pass "fm_tmux_composer_state: half-block tracking never crosses over into an unrelated real bordered box"
+}
+
 # --- fm-peek.sh stays escape-free (LLM-facing path) -------------------------
 
 test_peek_output_is_escape_free() {
@@ -625,4 +687,6 @@ test_fallback_capture_race_with_edge_is_unknown
 test_legitimate_empty_routes_remain_empty
 test_non_bordered_composer_uses_compatibility_fallback
 test_non_bordered_interior_edges_are_pending
+test_cursor_halfblock_rule_with_cursor_outside_is_unknown
+test_cursor_halfblock_rule_does_not_affect_bordered_harnesses
 test_peek_output_is_escape_free

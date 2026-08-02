@@ -482,6 +482,29 @@ test_opencode_threads_model_and_ignores_effort_axis() {
   pass "opencode receives --model and omits the unsupported effort axis"
 }
 
+test_cursor_threads_model_and_ignores_effort_axis() {
+  local rec id out status launch
+  id=profile-cursor-z9
+  rec=$(make_spawn_case profile-cursor cursor "$id")
+  read_case_record "$rec"
+
+  out=$(run_spawn "$HOME_DIR" "$WT_DIR" "$FAKEBIN_DIR" "$LAUNCH_LOG" "$id" "$PROJ_DIR" --model claude-opus-5-thinking-high --effort high)
+  status=$?
+  expect_code 0 "$status" "cursor spawn with model and ignored effort should succeed"
+  assert_meta_profile "$HOME_DIR/state/$id.meta" cursor claude-opus-5-thinking-high high
+  launch=$(cat "$LAUNCH_LOG")
+  assert_contains "$launch" "cursor-agent --force --trust --model 'claude-opus-5-thinking-high'" \
+    "cursor launch did not thread model or the required --force/--trust autonomy flags"
+  assert_not_contains "$launch" "--effort" "cursor launch must not pass a nonexistent --effort flag"
+  assert_not_contains "$launch" "--thinking" "cursor launch must not pass pi's thinking flag"
+  assert_not_contains "$launch" "--reasoning-effort" "cursor launch must not pass grok's reasoning-effort flag"
+  assert_not_contains "$launch" "-w " "cursor launch must never pass its own -w/--worktree flag"
+  assert_not_contains "$launch" "--worktree" "cursor launch must never pass its own -w/--worktree flag"
+  assert_contains "$launch" "fm-operational-input.sh' encode launch-brief" \
+    "cursor launch lost the canonical typed launch-brief envelope"
+  pass "cursor receives --model plus --force/--trust and omits the nonexistent effort axis"
+}
+
 test_pi_threads_model_and_max_effort() {
   local rec id out status launch
   id=profile-pi-z8
@@ -684,6 +707,7 @@ test_grok_threads_model_and_reasoning_effort
 test_grok_omits_invalid_max_reasoning_effort
 test_grok_omits_invalid_xhigh_reasoning_effort
 test_opencode_threads_model_and_ignores_effort_axis
+test_cursor_threads_model_and_ignores_effort_axis
 test_pi_threads_model_and_max_effort
 test_pi_signed_threads_shared_pi_profile_and_preserves_identity
 test_pi_signed_missing_binary_refuses_before_endpoint_or_metadata

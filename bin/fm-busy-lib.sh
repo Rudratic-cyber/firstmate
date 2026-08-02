@@ -34,6 +34,7 @@
 #   codex-hook, codex-appserver  reserved: Codex, gated by
 #                    fm_busy_codex_semantic_source
 #   kimi-wire, kimi-hook  reserved: standalone Kimi, gated by fm_busy_kimi_verified
+#   cursor-*         reserved: Cursor, gated by fm_busy_cursor_semantic_source
 # Firstmate-owned sources accepted for every converted adapter:
 #   fm-spawn         the launch-brief turn seeded at spawn
 #   fm-interrupt     a firstmate-controlled interruption of the worker
@@ -130,6 +131,22 @@ fm_busy_codex_semantic_source() {
   fm_busy_codex_appserver_observable || fm_busy_codex_hooks_verified
 }
 
+# fm_busy_cursor_semantic_source: 0 only once a verified Cursor semantic
+# source exists. cursor-agent 2026.07.23-e383d2b verdict (live): NOT
+# available. `cursor-agent --help` and every subcommand (`mcp`, `plugin`,
+# `create-chat`, `ls`, `resume`) expose no lifecycle-hook or event-stream
+# mechanism; `--output-format stream-json` only works with `-p`/`--print`
+# (headless, one-shot), not the supervised interactive TUI a pane worker
+# runs. A rendered busy footer ("ctrl+c to stop") was observed but is
+# deliberately NOT wired here: the approved redesign scopes the one
+# surviving rendered-tail fallback to harness=grok only (see this file's
+# header), and a second ad hoc arm would violate that one-owner rule. fm-spawn
+# arms and wires Cursor only behind this gate, and the classifier reports
+# unknown cursor-unverified until it opens.
+fm_busy_cursor_semantic_source() {
+  return 1
+}
+
 fm_busy_record_path() {  # <state-dir> <id>
   printf '%s/%s.busy-state' "$1" "$2"
 }
@@ -176,6 +193,10 @@ fm_busy_sources_for_harness() {  # <harness>
     kimi*)
       fm_busy_kimi_verified || { printf ''; return 0; }
       adapter='kimi-wire kimi-hook'
+      ;;
+    cursor*)
+      fm_busy_cursor_semantic_source || { printf ''; return 0; }
+      adapter='cursor-hook'
       ;;
     *) printf ''; return 0 ;;
   esac
@@ -274,6 +295,12 @@ fm_busy_classify() {  # <backend> <target> <harness> <id> <state-dir> [tail40]
     codex*)
       if ! fm_busy_codex_semantic_source; then
         printf 'unknown codex-unverified'
+        return 0
+      fi
+      ;;
+    cursor*)
+      if ! fm_busy_cursor_semantic_source; then
+        printf 'unknown cursor-unverified'
         return 0
       fi
       ;;

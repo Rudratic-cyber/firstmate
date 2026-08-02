@@ -189,10 +189,34 @@ fm_tmux_find_composer_box() {  # <cursor-y> <plain-visible-pane> -> "<top> <bott
   local content_inner content_spaces bottom_inner bottom_spaces
   local current_indent=
   local row=0 top=-1 valid=0 content_rows=0 unsafe=0 cursor_structural=0
+  local hb_top=-1 hb_bottom=-1 hb_probe
   while IFS= read -r line; do
     indent=${line%%[![:space:]]*}
     left_stripped="${line#"${line%%[![:space:]]*}"}"
     trimmed="${left_stripped%"${left_stripped##*[![:space:]]}"}"
+    # A full-width half-block rule pair (solid rows of only ▄ then only ▀,
+    # Cursor CLI's borderless composer edge) is not a recognized box family
+    # below, so it never resolves top/bottom/content here. It is still real
+    # composer structure the shared box scan cannot classify - tracked
+    # separately (last complete pair wins) so the caller can refuse the
+    # bare-row fallback when the cursor sits outside it (see unsafe check
+    # after the loop). No existing verified harness draws a solid ▄/▀ rule,
+    # so this adds no false positives for claude/codex/opencode/pi/grok/kimi.
+    case "$trimmed" in
+      '▄'*)
+        hb_probe=${trimmed//▄/}
+        if [ -z "$hb_probe" ]; then
+          hb_top=$row
+          hb_bottom=-1
+        fi
+        ;;
+      '▀'*)
+        hb_probe=${trimmed//▀/}
+        if [ -z "$hb_probe" ] && [ "$hb_top" -ge 0 ] && [ "$hb_bottom" -lt 0 ]; then
+          hb_bottom=$row
+        fi
+        ;;
+    esac
     kind=
     family=
     case "$trimmed" in
@@ -294,6 +318,15 @@ fm_tmux_find_composer_box() {  # <cursor-y> <plain-visible-pane> -> "<top> <bott
 $pane
 EOF
   if [ "$top" -ge 0 ] && [ "$top" -lt "$cy" ]; then
+    unsafe=1
+  fi
+  # A complete half-block rule pair exists but the cursor sits outside it
+  # (Cursor CLI parks the real terminal cursor off the visible composer -
+  # see the harness-adapters skill's Cursor section): the bare-row fallback
+  # below would read whatever blank/unrelated row the cursor is actually on
+  # and misreport it as a proven-empty composer. Force unknown instead.
+  if [ "$hb_top" -ge 0 ] && [ "$hb_bottom" -ge "$hb_top" ] \
+     && { [ "$cy" -le "$hb_top" ] || [ "$cy" -gt "$hb_bottom" ]; }; then
     unsafe=1
   fi
   if [ "$unsafe" = 1 ] || [ "$cursor_structural" = 1 ]; then
