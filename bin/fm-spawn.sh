@@ -71,10 +71,14 @@
 #   harness (config/secondmate-harness -> config/crew-harness -> own), so the
 #   secondmate-vs-crewmate split is DURABLE across every respawn (recovery,
 #   /updatefirstmate, restart). A bare adapter name (claude|codex|opencode|pi|pi-signed|grok|kimi|cursor)
-#   overrides it for this spawn (either kind). A non-flag string containing
-#   whitespace is treated as a RAW launch command - the escape hatch for verifying
-#   new adapters. pi-signed launches that exact executable name from PATH and
-#   refuses before endpoint creation when it is unavailable; it never falls back to pi.
+#   overrides it for this spawn (either kind, except cursor, which fm-spawn refuses
+#   for --secondmate: it is a crewmate/scout runtime only, with no primary-session
+#   integrations - turn-end guard, watcher supervision, session-start nudge, or
+#   session-lock identity - for a secondmate's own primary session to use). A
+#   non-flag string containing whitespace is treated as a RAW launch command - the
+#   escape hatch for verifying new adapters. pi-signed launches that exact
+#   executable name from PATH and refuses before endpoint creation when it is
+#   unavailable; it never falls back to pi.
 #   config/secondmate-harness may also carry an optional model and effort as extra
 #   whitespace-separated tokens ("<harness> [<model>] [<effort>]"). For a
 #   --secondmate spawn, those tokens apply only when this spawn also resolves its
@@ -429,7 +433,7 @@ FIRSTMATE_HOME=
 
 if [ "$KIND" = secondmate ]; then
   case "${POS[1]:-}" in
-    ''|claude|codex|opencode|pi|pi-signed|grok|kimi|cursor)
+    ''|claude|codex|opencode|pi|pi-signed|grok|kimi)
       ARG3=${POS[1]:-}
       ;;
     *' '*)
@@ -563,6 +567,17 @@ esac
 # retain the literal name in the launch command and task metadata.
 if [ "$HARNESS" = pi-signed ] && ! command -v pi-signed >/dev/null 2>&1; then
   echo "error: pi-signed executable not found on PATH; install the signed Pi wrapper or select a different verified harness" >&2
+  exit 1
+fi
+
+# cursor is a crewmate/scout runtime only. A secondmate runs its own primary
+# Firstmate session in its own home, and cursor has none of the primary-session
+# integrations that requires: no turn-end guard, no PreToolUse seatbelt, no
+# session-start nudge, and (deliberately, see bin/fm-session-lock-lib.sh) no
+# session-lock identity either. Refuse loudly here rather than let a cursor
+# secondmate look supported while running fully unsupervised.
+if [ "$KIND" = secondmate ] && [ "$HARNESS" = cursor ]; then
+  echo "error: cursor is a crewmate/scout runtime only; it has no primary-session integrations (turn-end guard, watcher supervision, session-start nudge) and cannot host a secondmate. Spawn a crewmate or scout instead, or select a different verified secondmate harness." >&2
   exit 1
 fi
 
