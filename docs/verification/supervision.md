@@ -164,7 +164,7 @@ Observed output:
 
 ```text
 fm-lint.sh: ShellCheck 0.11.0 (pinned 0.11.0)
-fm-doc-audience-check: ok surfaces=61 local_links=173
+fm-doc-audience-check: ok surfaces=61 local_links=174
 FM_TEST_SUMMARY total=4 failed=0 skipped_gate=0 duration_ms=102585
 ```
 
