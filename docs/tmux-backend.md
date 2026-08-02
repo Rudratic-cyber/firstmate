@@ -57,7 +57,7 @@ For a bordered composer, the tmux reader locates the complete box structurally a
 Real text on any content row is pending, while only an unambiguous box with every row empty is proven empty.
 Unreadable, incomplete, or structurally ambiguous boxes fail closed, and panes without a bordered composer retain the compatible cursor-row classification.
 The shared classifier accepts a shell glyph as an empty agent composer only inside a verified bordered composer.
-The structural box scan also recognizes a borderless full-width half-block rule pair (cursor-agent's composer edge) well enough to fail closed to `unknown` when the reported terminal cursor sits outside it, rather than falling through to a misleading bare-row read; the harness-adapters skill's Cursor section owns the verified evidence and consequence for steering.
+The structural box scan also recognizes a borderless half-block rule pair (cursor-agent's composer edge) well enough to fail closed to `unknown` when the reported terminal cursor sits outside it, rather than falling through to a misleading bare-row read; the harness-adapters skill's Cursor section owns the verified evidence and consequence for steering.
 A bare shell prompt is `unknown`, so away-mode escalation is never injected into a dead shell.
 
 Busy state is not read from rendered text on this backend.
