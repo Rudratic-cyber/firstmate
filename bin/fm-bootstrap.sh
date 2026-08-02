@@ -453,7 +453,7 @@ secondmate_liveness_sweep() {
     # cursor is verified for crewmates/scouts but refused as a secondmate
     # harness (bin/fm-spawn.sh), so it is deliberately absent here.
     case "$harness" in
-      claude|codex|opencode|pi|pi-signed|grok|kimi) ;;
+      claude|codex|opencode|pi|pi-signed|grok|kimi|antigravity) ;;
       *)
         case "$agent_state" in dead|missing) agent_state=unverified-harness ;; esac
         ;;
@@ -737,7 +737,7 @@ crew_dispatch_validate() {
     return 0
   fi
   err=$(jq -r '
-    def verified($h): ["claude","codex","opencode","pi","pi-signed","grok","kimi","cursor"] | index($h);
+    def verified($h): ["claude","codex","opencode","pi","pi-signed","grok","kimi","cursor","antigravity"] | index($h);
     def effort_ok($h; $e):
       if $e == null then true
       elif ($e | type) != "string" then false
@@ -745,7 +745,7 @@ crew_dispatch_validate() {
       elif $h == "codex" then (["low","medium","high","xhigh"] | index($e))
       elif $h == "grok" then (["low","medium","high"] | index($e))
       elif $h == "pi" or $h == "pi-signed" then (["low","medium","high","xhigh","max"] | index($e))
-      elif $h == "opencode" or $h == "kimi" or $h == "cursor" then false
+      elif $h == "opencode" or $h == "kimi" or $h == "cursor" or $h == "antigravity" then false
       else true
       end;
     def profiles($value):

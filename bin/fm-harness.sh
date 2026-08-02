@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Detect the agent harness this process tree runs on.
-# Usage: fm-harness.sh                  print own harness: claude|codex|opencode|pi|pi-signed|grok|kimi|cursor|unknown
+# Usage: fm-harness.sh                  print own harness: claude|codex|opencode|pi|pi-signed|grok|kimi|cursor|antigravity|unknown
 #        fm-harness.sh crew             print the effective CREWMATE harness
 #                                        (config/crew-harness; "default" resolves to own)
 #        fm-harness.sh secondmate       print the harness the PRIMARY uses to launch
@@ -48,6 +48,10 @@ detect_own() {
   # cursor-agent 2026.07.23-e383d2b), the same child-process-marker shape as
   # GROK_AGENT above; it is not set on the cursor-agent process itself.
   [ "${CURSOR_AGENT:-}" = "1" ] && { echo cursor; return; }
+  # agy (Antigravity CLI) sets ANTIGRAVITY_AGENT=1 for its child/tool processes
+  # (verified, agy 1.1.9), the same child-process-marker shape as GROK_AGENT and
+  # CURSOR_AGENT above; it is not set on the agy process itself.
+  [ "${ANTIGRAVITY_AGENT:-}" = "1" ] && { echo antigravity; return; }
   # Layer 2: walk the parent chain and match the command name.
   local pid=$$ comm base args
   for _ in 1 2 3 4 5 6 7 8; do
@@ -61,6 +65,7 @@ detect_own() {
       kimi) echo kimi; return ;;
       pi-signed) echo pi; return ;;
       pi) echo pi; return ;;
+      agy) echo antigravity; return ;;
       MainThread)
         # cursor-agent's own comm is literally "MainThread" (verified,
         # cursor-agent 2026.07.23-e383d2b: a Node runtime-thread-naming

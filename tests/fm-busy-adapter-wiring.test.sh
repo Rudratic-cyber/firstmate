@@ -339,6 +339,22 @@ test_cursor_unverified_until_a_semantic_source_exists() {
   pass "cursor classifies unknown until a semantic source is verified, never idle or footer-matched"
 }
 
+test_antigravity_unverified_until_a_semantic_source_exists() {
+  local rec id=busy-ag-1 out state
+  rec=$(make_spawn_case antigravity-unverified antigravity "$id")
+  read_case_record "$rec"
+  out=$(run_spawn "$HOME_DIR" "$WT_DIR" "$FAKEBIN_DIR" "$id" "$PROJ_DIR")
+  expect_code 0 $? "antigravity spawn should succeed: $out"
+  state="$HOME_DIR/state"
+  assert_absent "$state/$id.busy-gen" "antigravity must not arm a busy contract with no verified semantic source"
+  assert_contains "$out" 'spawned '"$id"' harness=antigravity' "antigravity spawn did not complete normally"
+  out=$(classify antigravity "$id" "$state")
+  [ "$out" = "unknown antigravity-unverified" ] || fail "antigravity must classify 'unknown antigravity-unverified', got '$out'"
+  out=$(fm_busy_classify tmux fake:w antigravity "$id" "$state" 'esc to cancel')
+  [ "$out" = "unknown antigravity-unverified" ] || fail "antigravity must not fall back to its rendered busy footer, got '$out'"
+  pass "antigravity classifies unknown until a semantic source is verified, never idle or footer-matched"
+}
+
 test_kimi_and_grok_install_no_unverified_wiring() {
   local state out
   state="$TMP_ROOT/gates/state"
@@ -363,5 +379,6 @@ test_claude_hooks_semantic_lifecycle
 test_claude_hooks_stale_incarnation_harmless
 test_codex_unverified_until_a_semantic_source_exists
 test_cursor_unverified_until_a_semantic_source_exists
+test_antigravity_unverified_until_a_semantic_source_exists
 
 echo "all fm-busy-adapter-wiring tests passed"

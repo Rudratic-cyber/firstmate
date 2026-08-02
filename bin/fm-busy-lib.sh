@@ -35,6 +35,8 @@
 #                    fm_busy_codex_semantic_source
 #   kimi-wire, kimi-hook  reserved: standalone Kimi, gated by fm_busy_kimi_verified
 #   cursor-*         reserved: Cursor, gated by fm_busy_cursor_semantic_source
+#   antigravity-*    reserved: Antigravity (agy), gated by
+#                    fm_busy_antigravity_semantic_source
 # Firstmate-owned sources accepted for every converted adapter:
 #   fm-spawn         the launch-brief turn seeded at spawn
 #   fm-interrupt     a firstmate-controlled interruption of the worker
@@ -147,6 +149,25 @@ fm_busy_cursor_semantic_source() {
   return 1
 }
 
+# fm_busy_antigravity_semantic_source: 0 only once a verified Antigravity
+# semantic source exists. agy 1.1.9 verdict (live): NOT available. `agy
+# --help` and every subcommand (`agent`, `changelog`, `install`, `models`,
+# `plugin`) expose no lifecycle-hook or event-stream mechanism reachable from
+# outside the process; the changelog documents real Stop and PostToolUse
+# hooks (matching Claude Code's own hook system), but wiring one is a
+# task-sized project of its own (locating and writing agy's hooks.json
+# equivalent, verifying it fires for a firstmate-launched worker) and is left
+# as a follow-up, not attempted here. A rendered busy footer ("esc to
+# cancel" mid-turn vs "? for shortcuts" idle) was observed but is
+# deliberately NOT wired here: the approved redesign scopes the one
+# surviving rendered-tail fallback to harness=grok only (see this file's
+# header), and a second ad hoc arm would violate that one-owner rule. fm-spawn
+# arms and wires Antigravity only behind this gate, and the classifier
+# reports unknown antigravity-unverified until it opens.
+fm_busy_antigravity_semantic_source() {
+  return 1
+}
+
 fm_busy_record_path() {  # <state-dir> <id>
   printf '%s/%s.busy-state' "$1" "$2"
 }
@@ -197,6 +218,10 @@ fm_busy_sources_for_harness() {  # <harness>
     cursor*)
       fm_busy_cursor_semantic_source || { printf ''; return 0; }
       adapter='cursor-hook'
+      ;;
+    antigravity*)
+      fm_busy_antigravity_semantic_source || { printf ''; return 0; }
+      adapter='antigravity-hook'
       ;;
     *) printf ''; return 0 ;;
   esac
@@ -301,6 +326,12 @@ fm_busy_classify() {  # <backend> <target> <harness> <id> <state-dir> [tail40]
     cursor*)
       if ! fm_busy_cursor_semantic_source; then
         printf 'unknown cursor-unverified'
+        return 0
+      fi
+      ;;
+    antigravity*)
+      if ! fm_busy_antigravity_semantic_source; then
+        printf 'unknown antigravity-unverified'
         return 0
       fi
       ;;
